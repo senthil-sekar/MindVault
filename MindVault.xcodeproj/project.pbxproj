@@ -1,0 +1,432 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D0954EF42F37A77900A58439 /* TextToSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF32F37A77900A58439 /* TextToSpeechService.swift */; };
+		D0954EF52F37A77900A58439 /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */; };
+		D0954EF92F37B90500A58439 /* EmailProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF62F37B90500A58439 /* EmailProcessingService.swift */; };
+		D0954EFA2F37B90500A58439 /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF72F37B90500A58439 /* EmailService.swift */; };
+		D0954EFB2F37B90500A58439 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF82F37B90500A58439 /* KeychainService.swift */; };
+		D0C870CF2F37F5BE0003AF7B /* EmailMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C870CE2F37F5BE0003AF7B /* EmailMessage.swift */; };
+		D0C870D02F37F5BE0003AF7B /* EmailAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C870CD2F37F5BE0003AF7B /* EmailAccount.swift */; };
+		D0F142282F38415900D51670 /* EmailDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F142252F38415900D51670 /* EmailDetailView.swift */; };
+		D0F142292F38415900D51670 /* EmailListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F142262F38415900D51670 /* EmailListView.swift */; };
+		D0F1422A2F38415900D51670 /* EmailAccountConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0F142242F38415900D51670 /* EmailAccountConnectionView.swift */; };
+		E01234562001 /* MindVaultApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560101 /* MindVaultApp.swift */; };
+		E01234562002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560102 /* ContentView.swift */; };
+		E01234562003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E01234560103 /* Assets.xcassets */; };
+		E01234562004 /* JournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560104 /* JournalEntry.swift */; };
+		E01234562005 /* ProfileItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560105 /* ProfileItem.swift */; };
+		E01234562006 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560106 /* ChatMessage.swift */; };
+		E01234562007 /* JournalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560107 /* JournalView.swift */; };
+		E01234562008 /* JournalEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560108 /* JournalEntryView.swift */; };
+		E01234562009 /* JournalEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560109 /* JournalEditorView.swift */; };
+		E01234562010 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560110 /* ChatView.swift */; };
+		E01234562011 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560111 /* ProfileView.swift */; };
+		E01234562012 /* SkillsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560112 /* SkillsView.swift */; };
+		E01234562013 /* EmbeddingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560113 /* EmbeddingService.swift */; };
+		E01234562014 /* VectorDBService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560114 /* VectorDBService.swift */; };
+		E01234562015 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560115 /* LLMService.swift */; };
+		E01234562016 /* RAGService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560116 /* RAGService.swift */; };
+		E01234562017 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560117 /* APIClient.swift */; };
+		E01234562018 /* Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560118 /* Configuration.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
+		D0954EF32F37A77900A58439 /* TextToSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextToSpeechService.swift; sourceTree = "<group>"; };
+		D0954EF62F37B90500A58439 /* EmailProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailProcessingService.swift; sourceTree = "<group>"; };
+		D0954EF72F37B90500A58439 /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
+		D0954EF82F37B90500A58439 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		D0C870CD2F37F5BE0003AF7B /* EmailAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAccount.swift; sourceTree = "<group>"; };
+		D0C870CE2F37F5BE0003AF7B /* EmailMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailMessage.swift; sourceTree = "<group>"; };
+		D0F142242F38415900D51670 /* EmailAccountConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAccountConnectionView.swift; sourceTree = "<group>"; };
+		D0F142252F38415900D51670 /* EmailDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailDetailView.swift; sourceTree = "<group>"; };
+		D0F142262F38415900D51670 /* EmailListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailListView.swift; sourceTree = "<group>"; };
+		E01234560001 /* MindVault.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MindVault.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E01234560101 /* MindVaultApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MindVaultApp.swift; sourceTree = "<group>"; };
+		E01234560102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		E01234560103 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E01234560104 /* JournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntry.swift; sourceTree = "<group>"; };
+		E01234560105 /* ProfileItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileItem.swift; sourceTree = "<group>"; };
+		E01234560106 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		E01234560107 /* JournalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalView.swift; sourceTree = "<group>"; };
+		E01234560108 /* JournalEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryView.swift; sourceTree = "<group>"; };
+		E01234560109 /* JournalEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEditorView.swift; sourceTree = "<group>"; };
+		E01234560110 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		E01234560111 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		E01234560112 /* SkillsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillsView.swift; sourceTree = "<group>"; };
+		E01234560113 /* EmbeddingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmbeddingService.swift; sourceTree = "<group>"; };
+		E01234560114 /* VectorDBService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VectorDBService.swift; sourceTree = "<group>"; };
+		E01234560115 /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
+		E01234560116 /* RAGService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAGService.swift; sourceTree = "<group>"; };
+		E01234560117 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		E01234560118 /* Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Configuration.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		D0F142272F38415900D51670 /* Email */ = {
+			isa = PBXGroup;
+			children = (
+				D0F142242F38415900D51670 /* EmailAccountConnectionView.swift */,
+				D0F142252F38415900D51670 /* EmailDetailView.swift */,
+				D0F142262F38415900D51670 /* EmailListView.swift */,
+			);
+			path = Email;
+			sourceTree = "<group>";
+		};
+		E01234570001 = {
+			isa = PBXGroup;
+			children = (
+				E01234570002 /* MindVault */,
+				E01234570003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E01234570002 /* MindVault */ = {
+			isa = PBXGroup;
+			children = (
+				E01234560101 /* MindVaultApp.swift */,
+				E01234560102 /* ContentView.swift */,
+				E01234570004 /* Models */,
+				E01234570005 /* Views */,
+				E01234570006 /* Services */,
+				E01234570007 /* Utilities */,
+				E01234560103 /* Assets.xcassets */,
+			);
+			path = MindVault;
+			sourceTree = "<group>";
+		};
+		E01234570003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E01234560001 /* MindVault.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E01234570004 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				D0C870CD2F37F5BE0003AF7B /* EmailAccount.swift */,
+				D0C870CE2F37F5BE0003AF7B /* EmailMessage.swift */,
+				E01234560104 /* JournalEntry.swift */,
+				E01234560105 /* ProfileItem.swift */,
+				E01234560106 /* ChatMessage.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		E01234570005 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D0F142272F38415900D51670 /* Email */,
+				E01234570008 /* Journal */,
+				E01234570009 /* Chat */,
+				E01234570010 /* Profile */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E01234570006 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				D0954EF62F37B90500A58439 /* EmailProcessingService.swift */,
+				D0954EF72F37B90500A58439 /* EmailService.swift */,
+				D0954EF82F37B90500A58439 /* KeychainService.swift */,
+				D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */,
+				D0954EF32F37A77900A58439 /* TextToSpeechService.swift */,
+				E01234560113 /* EmbeddingService.swift */,
+				E01234560114 /* VectorDBService.swift */,
+				E01234560115 /* LLMService.swift */,
+				E01234560116 /* RAGService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		E01234570007 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				E01234560117 /* APIClient.swift */,
+				E01234560118 /* Configuration.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		E01234570008 /* Journal */ = {
+			isa = PBXGroup;
+			children = (
+				E01234560107 /* JournalView.swift */,
+				E01234560108 /* JournalEntryView.swift */,
+				E01234560109 /* JournalEditorView.swift */,
+			);
+			path = Journal;
+			sourceTree = "<group>";
+		};
+		E01234570009 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				E01234560110 /* ChatView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+		E01234570010 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				E01234560111 /* ProfileView.swift */,
+				E01234560112 /* SkillsView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E01234580001 /* MindVault */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E01234590001 /* Build configuration list for PBXNativeTarget "MindVault" */;
+			buildPhases = (
+				E01234580002 /* Sources */,
+				E01234580003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MindVault;
+			productName = MindVault;
+			productReference = E01234560001 /* MindVault.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E01234500001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					E01234580001 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = E01234500002 /* Build configuration list for PBXProject "MindVault" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E01234570001;
+			productRefGroup = E01234570003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E01234580001 /* MindVault */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E01234580003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E01234562003 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E01234580002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E01234562001 /* MindVaultApp.swift in Sources */,
+				E01234562002 /* ContentView.swift in Sources */,
+				D0F142282F38415900D51670 /* EmailDetailView.swift in Sources */,
+				D0F142292F38415900D51670 /* EmailListView.swift in Sources */,
+				D0F1422A2F38415900D51670 /* EmailAccountConnectionView.swift in Sources */,
+				D0954EF42F37A77900A58439 /* TextToSpeechService.swift in Sources */,
+				D0954EF52F37A77900A58439 /* SpeechRecognitionService.swift in Sources */,
+				D0954EF92F37B90500A58439 /* EmailProcessingService.swift in Sources */,
+				D0C870CF2F37F5BE0003AF7B /* EmailMessage.swift in Sources */,
+				D0C870D02F37F5BE0003AF7B /* EmailAccount.swift in Sources */,
+				D0954EFA2F37B90500A58439 /* EmailService.swift in Sources */,
+				D0954EFB2F37B90500A58439 /* KeychainService.swift in Sources */,
+				E01234562004 /* JournalEntry.swift in Sources */,
+				E01234562005 /* ProfileItem.swift in Sources */,
+				E01234562006 /* ChatMessage.swift in Sources */,
+				E01234562007 /* JournalView.swift in Sources */,
+				E01234562008 /* JournalEntryView.swift in Sources */,
+				E01234562009 /* JournalEditorView.swift in Sources */,
+				E01234562010 /* ChatView.swift in Sources */,
+				E01234562011 /* ProfileView.swift in Sources */,
+				E01234562012 /* SkillsView.swift in Sources */,
+				E01234562013 /* EmbeddingService.swift in Sources */,
+				E01234562014 /* VectorDBService.swift in Sources */,
+				E01234562015 /* LLMService.swift in Sources */,
+				E01234562016 /* RAGService.swift in Sources */,
+				E01234562017 /* APIClient.swift in Sources */,
+				E01234562018 /* Configuration.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E01234590002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		E01234590003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E01234590004 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindVault needs access to your microphone for voice journal entries.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MindVault needs access to speech recognition for voice journal entries.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mindvault.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E01234590005 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "MindVault needs access to your microphone for voice journal entries.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "MindVault needs access to speech recognition for voice journal entries.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mindvault.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E01234500002 /* Build configuration list for PBXProject "MindVault" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E01234590002 /* Debug */,
+				E01234590003 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E01234590001 /* Build configuration list for PBXNativeTarget "MindVault" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E01234590004 /* Debug */,
+				E01234590005 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E01234500001 /* Project object */;
+}

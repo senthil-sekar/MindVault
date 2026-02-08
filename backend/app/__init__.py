@@ -1,0 +1,3 @@
+"""
+MindVault Backend Application
+"""
