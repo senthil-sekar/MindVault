@@ -4,7 +4,7 @@ Qdrant Vector Database Service
 
 import logging
 import uuid
-from typing import Optional, Any
+from typing import Optional, Any, List, Dict
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -86,8 +86,8 @@ class VectorDBService:
     async def upsert(
         self,
         id: str,
-        vector: list[float],
-        metadata: dict[str, Any],
+        vector: List[float],
+        metadata: Dict[str, Any],
         content: Optional[str] = None
     ) -> bool:
         """Upsert a document into the vector database."""
@@ -135,11 +135,11 @@ class VectorDBService:
     
     async def search(
         self,
-        vector: list[float],
+        vector: List[float],
         top_k: int = 5,
-        filter_conditions: Optional[dict] = None,
+        filter_conditions: Optional[Dict] = None,
         min_score: Optional[float] = None
-    ) -> list[dict]:
+    ) -> List[Dict]:
         """Search for similar documents."""
         try:
             # Build filter if provided

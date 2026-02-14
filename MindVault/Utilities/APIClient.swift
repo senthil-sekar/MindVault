@@ -56,20 +56,33 @@ actor APIClient {
     // MARK: - Upsert Document
     func upsert(id: String, content: String, metadata: [String: Any]) async throws {
         let url = try makeURL(Configuration.Endpoints.upsert)
+        print("📤 APIClient.upsert called - id: \(id), content_len: \(content.count)")
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let upsertRequest = UpsertRequest(
-            id: id,
-            content: content,
-            metadata: metadata.mapValues { AnyCodable($0) }
-        )
+        let upsertRequest = UpsertRequest(id: id, content: content, metadata: metadata)
         request.httpBody = try encoder.encode(upsertRequest)
         
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
+        print("✅ APIClient.upsert succeeded - id: \(id)")
+    }
+    
+    func upsert(request: UpsertRequest) async throws {
+        let url = try makeURL(Configuration.Endpoints.upsert)
+        print("📤 APIClient.upsert(request) called - id: \(request.id), content_len: \(request.content.count)")
+        
+        var httpRequest = URLRequest(url: url)
+        httpRequest.httpMethod = "POST"
+        httpRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        httpRequest.httpBody = try encoder.encode(request)
+        
+        let (_, response) = try await session.data(for: httpRequest)
+        try validateResponse(response)
+        print("✅ APIClient.upsert(request) succeeded - id: \(request.id)")
+
     }
     
     // MARK: - Delete Document
@@ -84,6 +97,18 @@ actor APIClient {
         request.httpBody = try encoder.encode(body)
         
         let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+    
+    func delete(request: DeleteRequest) async throws {
+        let url = try makeURL(Configuration.Endpoints.delete)
+        
+        var httpRequest = URLRequest(url: url)
+        httpRequest.httpMethod = "DELETE"
+        httpRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        httpRequest.httpBody = try encoder.encode(request)
+        
+        let (_, response) = try await session.data(for: httpRequest)
         try validateResponse(response)
     }
     
@@ -128,11 +153,27 @@ actor APIClient {
         return try decoder.decode(ChatResponse.self, from: data)
     }
     
-    // MARK: - Helpers
-    private func makeURL(_ urlString: String) throws -> URL {
-        guard let url = URL(string: urlString) else {
+    func chat(request: ChatRequest) async throws -> ChatResponse {
+        let url = try makeURL(Configuration.Endpoints.chat)
+        
+        var httpRequest = URLRequest(url: url)
+        httpRequest.httpMethod = "POST"
+        httpRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        httpRequest.httpBody = try encoder.encode(request)
+        
+        let (data, response) = try await session.data(for: httpRequest)
+        try validateResponse(response)
+        
+        return try decoder.decode(ChatResponse.self, from: data)
+    }
+    
+    
+    private func makeURL(_ endpoint: String) throws -> URL {
+        guard let url = URL(string: endpoint) else {
+            print("❌ Invalid URL: \(endpoint)")
             throw NetworkError.invalidURL
         }
+        print("🔗 API Request to: \(endpoint)")
         return url
     }
     
@@ -170,3 +211,5 @@ extension APIClient {
         }
     }
 }
+
+

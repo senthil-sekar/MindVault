@@ -4,7 +4,7 @@ Orchestrates embedding, search, and LLM for answering questions.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple, List, Dict
 
 from app.services.embedding import embedding_service
 from app.services.vector_db import vector_db_service
@@ -24,8 +24,8 @@ class RAGService:
     async def process_query(
         self,
         query: str,
-        history: Optional[list[dict[str, str]]] = None
-    ) -> tuple[str, list[ContextResult]]:
+        history: Optional[List[Dict[str, str]]] = None
+    ) -> Tuple[str, List[ContextResult]]:
         """
         Process a user query using RAG.
         
@@ -48,12 +48,17 @@ class RAGService:
                 min_score=self.settings.rag_min_score
             )
             
+            logger.info(f"Found {len(search_results)} search results")
+            for i, result in enumerate(search_results):
+                logger.info(f"  Result {i+1}: id={result['id']}, score={result['score']:.4f}, content_len={len(result.get('content', ''))}")
+            
             # Step 3: Extract context
             contexts = []
             context_texts = []
             
             for result in search_results:
                 content = result.get("content", "")
+                logger.info(f"Processing result: content_empty={not content}, content_len={len(content)}")
                 if content:
                     context_texts.append(content)
                     
@@ -64,6 +69,8 @@ class RAGService:
                         snippet=content[:300] + "..." if len(content) > 300 else content,
                         score=result["score"]
                     ))
+            
+            logger.info(f"Extracted {len(context_texts)} contexts from {len(search_results)} results")
             
             # Step 4: Generate response
             if not context_texts:
@@ -130,8 +137,8 @@ class RAGService:
         self,
         query: str,
         top_k: int = 5,
-        filter_conditions: Optional[dict] = None
-    ) -> list[SearchResult]:
+        filter_conditions: Optional[Dict] = None
+    ) -> List[SearchResult]:
         """Search for documents similar to the query."""
         try:
             # Generate query embedding

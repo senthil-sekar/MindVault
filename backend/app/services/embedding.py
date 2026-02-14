@@ -4,7 +4,7 @@ Local Embedding Service using Sentence Transformers
 """
 
 import logging
-from typing import Optional
+from typing import Optional, List
 from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class EmbeddingService:
         """Check if the service is ready."""
         return self.model is not None
     
-    async def generate_embedding(self, text: str) -> list[float]:
+    async def generate_embedding(self, text: str) -> List[float]:
         """Generate an embedding for the given text."""
         if not self.model:
             raise RuntimeError("Embedding model not initialized")
@@ -52,7 +52,7 @@ class EmbeddingService:
             logger.error(f"Failed to generate embedding: {e}")
             raise
     
-    async def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
+    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings for multiple texts."""
         if not self.model:
             raise RuntimeError("Embedding model not initialized")
@@ -62,8 +62,8 @@ class EmbeddingService:
             
             # Batch processing is more efficient
             embeddings = self.model.encode(
-                cleaned_texts, 
-                convert_to_numpy=True, 
+                cleaned_texts,
+                convert_to_numpy=True,
                 show_progress_bar=False
             )
             

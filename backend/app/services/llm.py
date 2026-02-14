@@ -6,7 +6,7 @@ Local LLM Service using Ollama
 import os
 import logging
 import requests
-from typing import Optional
+from typing import Optional, List, Dict
 
 from app.config import get_settings, SYSTEM_PROMPT
 
@@ -44,8 +44,8 @@ class LLMService:
     async def generate_response(
         self,
         message: str,
-        context: list[str],
-        history: Optional[list[dict[str, str]]] = None
+        context: List[str],
+        history: Optional[List[Dict[str, str]]] = None
     ) -> str:
         """Generate a chat response with context."""
         try:
@@ -56,6 +56,10 @@ class LLMService:
             # Build prompt with system message and context
             prompt = f"{SYSTEM_PROMPT}\n\n{full_message}"
             
+            logger.info(f"Context items: {len(context)}")
+            for i, ctx in enumerate(context):
+                logger.info(f"  Context {i+1} (len={len(ctx)}): {ctx[:100]}...")
+            
             # Add conversation history if available
             if history:
                 history_text = "\n".join([
@@ -63,6 +67,8 @@ class LLMService:
                     for msg in history[-5:]  # Keep last 5 messages
                 ])
                 prompt = f"{SYSTEM_PROMPT}\n\nPrevious conversation:\n{history_text}\n\n{full_message}"
+            
+            logger.info(f"Sending to Ollama - Prompt length: {len(prompt)}")
             
             # Call Ollama API
             response = requests.post(
@@ -117,7 +123,7 @@ class LLMService:
             logger.error(f"Failed to generate response: {e}")
             return f"Sorry, I encountered an error: {str(e)}"
     
-    def _build_context(self, contexts: list[str]) -> str:
+    def _build_context(self, contexts: List[str]) -> str:
         """Build the context section of the prompt."""
         if not contexts:
             return "No relevant context found in the user's journal."

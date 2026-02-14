@@ -30,7 +30,7 @@ enum Configuration {
     // MARK: - RAG Configuration
     enum RAG {
         static let topK = 5  // Number of documents to retrieve
-        static let minRelevanceScore: Float = 0.5
+        static let minRelevanceScore: Float = 0.2  // Lowered from 0.5 to allow more results
         static let maxContextTokens = 4000
         static let embeddingModel = "text-embedding-3-small"
         static let embeddingDimension = 1536
@@ -138,6 +138,26 @@ struct UpsertRequest: Codable {
     let id: String
     let content: String
     let metadata: [String: AnyCodable]
+    
+    init(id: String, content: String, metadata: [String: Any]) {
+        self.id = id
+        self.content = content
+        self.metadata = metadata.mapValues { AnyCodable($0) }
+    }
+}
+
+struct DeleteRequest: Codable {
+    let id: String
+}
+
+struct ChatRequest: Codable {
+    let message: String
+    let history: [[String: String]]?
+    
+    init(message: String, history: [[String: String]]? = nil) {
+        self.message = message
+        self.history = history
+    }
 }
 
 struct HealthResponse: Codable {

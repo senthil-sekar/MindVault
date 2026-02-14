@@ -245,6 +245,79 @@ class EmailService: NSObject, ObservableObject {
     
     // MARK: - Email Syncing
     
+    /// Process existing emails that are already in the local database and send them to the backend
+    func processExistingEmails(for account: EmailAccount, limit: Int? = nil) async throws {
+        print("🔄 Processing existing emails for AI indexing...")
+        
+        isSyncing = true
+        syncProgress = 0.0
+        lastError = nil
+        defer { isSyncing = false }
+        
+        // Fetch all emails from database for this account
+        let descriptor = FetchDescriptor<EmailMessage>()
+        let allEmails = try modelContext.fetch(descriptor)
+        
+        // Filter for this account's emails that aren't processed yet
+        var emails = allEmails.filter { email in
+            email.account?.id == account.id && !email.isProcessedForAI
+        }
+        
+        // Limit if specified
+        if let limit = limit {
+            emails = Array(emails.prefix(limit))
+        }
+        
+        print("📧 Found \(emails.count) unprocessed emails to index")
+        
+        guard !emails.isEmpty else {
+            print("✅ All emails already processed!")
+            return
+        }
+        
+        let apiClient = APIClient.shared
+        
+        for (index, emailMessage) in emails.enumerated() {
+            print("💾 Processing email \(index + 1)/\(emails.count): \(emailMessage.subject)")
+            
+            // Create content for embedding
+            let content = """
+            From: \(emailMessage.from)
+            Subject: \(emailMessage.subject)
+            Date: \(DateFormatter().string(from: emailMessage.date))
+            
+            \(emailMessage.body)
+            """
+            
+            // Metadata for filtering
+            var metadata: [String: Any] = [
+                "type": "email",
+                "from": emailMessage.from,
+                "subject": emailMessage.subject,
+                "date": ISO8601DateFormatter().string(from: emailMessage.date)
+            ]
+            
+            if let threadId = emailMessage.threadId, !threadId.isEmpty {
+                metadata["thread_id"] = threadId
+            }
+            
+            // Send to backend
+            do {
+                print("  → Sending to backend: \(emailMessage.subject)")
+                try await apiClient.upsert(id: emailMessage.id.uuidString, content: content, metadata: metadata)
+                print("✅ Email indexed: \(emailMessage.subject)")
+                emailMessage.isProcessedForAI = true
+                try modelContext.save()
+            } catch {
+                print("❌ Failed to index email \(emailMessage.subject): \(error.localizedDescription)")
+            }
+            
+            syncProgress = Double(index + 1) / Double(emails.count)
+        }
+        
+        print("✨ Finished processing \(emails.count) emails")
+    }
+    
     func syncEmails(for account: EmailAccount, limit: Int = 50) async throws {
         guard account.isConnected else {
             throw EmailServiceError.accountNotConnected
@@ -267,11 +340,13 @@ class EmailService: NSObject, ObservableObject {
             
             // Fetch messages
             let messages = try await fetchMessages(accessToken: accessToken, limit: limit)
+            print("📨 Fetched \(messages.count) messages from Gmail")
             
             syncProgress = 0.5
             
-            // Save messages to database
+            // Save messages to database and process for RAG
             for (index, message) in messages.enumerated() {
+                print("💾 Saving message \(index + 1)/\(messages.count): \(message.subject)")
                 let emailMessage = EmailMessage(
                     messageId: message.id,
                     threadId: message.threadId,
@@ -290,6 +365,43 @@ class EmailService: NSObject, ObservableObject {
                 emailMessage.account = account
                 
                 modelContext.insert(emailMessage)
+                try modelContext.save()
+                
+                // Process this email immediately for RAG
+                do {
+                    print("  → Sending to backend: \(message.subject)")
+                    let apiClient = APIClient.shared
+                    
+                    // Content: Full email text that will be embedded
+                    let content = """
+                    From: \(message.from)
+                    Subject: \(message.subject)
+                    Date: \(DateFormatter().string(from: message.date))
+                    
+                    \(message.body)
+                    """
+                    
+                    // Metadata: Searchable/filterable fields only (NOT the content!)
+                    var metadata: [String: Any] = [
+                        "type": "email",
+                        "from": message.from,
+                        "subject": message.subject,
+                        "date": ISO8601DateFormatter().string(from: message.date)
+                    ]
+                    
+                    if !message.threadId.isEmpty {
+                        metadata["thread_id"] = message.threadId
+                    }
+                    
+                    print("  📤 Upsert details - Content length: \(content.count), Metadata keys: \(metadata.keys.joined(separator: ", "))")
+                    
+                    try await apiClient.upsert(id: emailMessage.id.uuidString, content: content, metadata: metadata)
+                    print("✅ Email indexed: \(message.subject)")
+                    emailMessage.isProcessedForAI = true
+                    try modelContext.save()
+                } catch {
+                    print("❌ Failed to index email \(message.subject): \(error.localizedDescription)")
+                }
                 
                 syncProgress = 0.5 + (Double(index + 1) / Double(messages.count)) * 0.5
             }
@@ -299,12 +411,10 @@ class EmailService: NSObject, ObservableObject {
             try modelContext.save()
             
             syncProgress = 0.9
-            
-            // Automatically process emails for RAG context
-            await processEmailsForRAG(messages: messages)
-            
+            print("✨ All emails synced and indexed")
             syncProgress = 1.0
         } catch {
+            print("❌ Email sync failed: \(error)")
             lastError = error.localizedDescription
             throw error
         }
@@ -313,27 +423,59 @@ class EmailService: NSObject, ObservableObject {
     // MARK: - RAG Processing
     
     private func processEmailsForRAG(messages: [GmailMessage]) async {
-        // Process emails for RAG context
-        let processingService = EmailProcessingService(modelContext: modelContext)
+        // Process emails for RAG context and send to backend
+        let apiClient = APIClient.shared
+        print("🔄 Starting to process \(messages.count) emails for RAG...")
         
-        for message in messages {
+        for (index, message) in messages.enumerated() {
             // Capture message ID before using in predicate
             let messageId = message.id
+            print("📧 Processing email \(index + 1)/\(messages.count): \(message.subject)")
             
             // Find the EmailMessage in the database using traditional fetch
             let descriptor = FetchDescriptor<EmailMessage>()
             
             if let emailMessages = try? modelContext.fetch(descriptor) {
                 // Filter in memory to avoid predicate macro issues
-                if let emailMessage = emailMessages.first(where: { $0.messageId == messageId }),
-                   !emailMessage.isProcessedForAI {
-                    // Process this email for AI context (fire and forget)
-                    Task {
-                        try? await processingService.processEmail(emailMessage)
+                if let emailMessage = emailMessages.first(where: { $0.messageId == messageId }) {
+                    // Create a document with email content
+                    let content = """
+                    From: \(emailMessage.from)
+                    Subject: \(emailMessage.subject)
+                    Date: \(DateFormatter().string(from: emailMessage.date))
+                    
+                    \(emailMessage.body)
+                    """
+                    
+                    var metadata: [String: Any] = [
+                        "type": "email",
+                        "from": emailMessage.from,
+                        "subject": emailMessage.subject,
+                        "date": ISO8601DateFormatter().string(from: emailMessage.date)
+                    ]
+                    
+                    if let threadId = emailMessage.threadId {
+                        metadata["thread_id"] = threadId
                     }
+                    
+                    // Send to backend for embedding and storage
+                    do {
+                        print("  → Sending to backend: \(emailMessage.subject)")
+                        try await apiClient.upsert(id: emailMessage.id.uuidString, content: content, metadata: metadata)
+                        print("✅ Email indexed: \(emailMessage.subject)")
+                        emailMessage.isProcessedForAI = true
+                        try modelContext.save()
+                    } catch {
+                        print("❌ Failed to process email \(emailMessage.subject): \(error.localizedDescription)")
+                    }
+                } else {
+                    print("  ⚠️  Email not found in database: \(messageId)")
                 }
+            } else {
+                print("  ⚠️  Failed to fetch emails from database")
             }
         }
+        print("✨ Finished processing emails")
     }
     
     private func fetchMessages(accessToken: String, limit: Int) async throws -> [GmailMessage] {
@@ -342,11 +484,15 @@ class EmailService: NSObject, ObservableObject {
         var listRequest = URLRequest(url: listURL)
         listRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         
+        print("🔄 Fetching Gmail messages from: \(listURL)")
         let (listData, listResponse) = try await URLSession.shared.data(for: listRequest)
         
         guard let httpResponse = listResponse as? HTTPURLResponse else {
+            print("❌ Invalid response type")
             throw EmailServiceError.fetchFailed
         }
+        
+        print("📊 Gmail API response: \(httpResponse.statusCode)")
         
         guard (200...299).contains(httpResponse.statusCode) else {
             // Try to parse error message from Gmail API
@@ -360,6 +506,7 @@ class EmailService: NSObject, ObservableObject {
         }
         
         let messageList = try JSONDecoder().decode(GmailMessageList.self, from: listData)
+        print("📋 Gmail returned \(messageList.messages?.count ?? 0) message IDs")
         
         // Fetch full message details
         var messages: [GmailMessage] = []
@@ -377,6 +524,7 @@ class EmailService: NSObject, ObservableObject {
             messages.append(parsedMessage)
         }
         
+        print("✅ Successfully fetched and parsed \(messages.count) messages")
         return messages
     }
     

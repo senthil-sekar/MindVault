@@ -3,7 +3,7 @@ Pydantic models for API requests and responses.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, Any
+from typing import Optional, Any, List, Dict
 from datetime import datetime
 
 
@@ -16,7 +16,7 @@ class EmbedRequest(BaseModel):
 
 class EmbedResponse(BaseModel):
     """Response containing the generated embedding."""
-    embedding: list[float]
+    embedding: List[float]
     id: Optional[str] = None
 
 
@@ -26,7 +26,7 @@ class UpsertRequest(BaseModel):
     """Request to upsert a document into the vector DB."""
     id: str
     content: str = Field(..., min_length=1)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DeleteRequest(BaseModel):
@@ -38,20 +38,20 @@ class SearchRequest(BaseModel):
     """Request to search the vector DB."""
     query: str = Field(..., min_length=1)
     top_k: int = Field(default=5, ge=1, le=20)
-    filter: Optional[dict[str, Any]] = None
+    filter: Optional[Dict[str, Any]] = None
 
 
 class SearchResult(BaseModel):
     """A single search result."""
     id: str
     score: float
-    metadata: dict[str, Any]
+    metadata: Dict[str, Any]
     content: Optional[str] = None
 
 
 class SearchResponse(BaseModel):
     """Response containing search results."""
-    results: list[SearchResult]
+    results: List[SearchResult]
 
 
 # MARK: - Chat Models
@@ -65,7 +65,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     """Request to generate a chat response."""
     message: str = Field(..., min_length=1)
-    history: Optional[list[dict[str, str]]] = None
+    history: Optional[List[Dict[str, str]]] = None
 
 
 class ContextResult(BaseModel):
@@ -80,7 +80,7 @@ class ContextResult(BaseModel):
 class ChatResponse(BaseModel):
     """Response containing the chat response and context."""
     response: str
-    contexts: list[ContextResult]
+    contexts: List[ContextResult]
 
 
 # MARK: - Health Models
@@ -100,7 +100,7 @@ class JournalEntryMetadata(BaseModel):
     id: str
     type: str = "journal_entry"
     category: str
-    tags: list[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
     created_at: str
     title: str
 
@@ -111,5 +111,5 @@ class ProfileItemMetadata(BaseModel):
     type: str
     title: str
     proficiency: Optional[int] = None
-    tags: list[str] = Field(default_factory=list)
+    tags: List[str] = Field(default_factory=list)
     is_current: bool = False

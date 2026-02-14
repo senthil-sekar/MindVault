@@ -236,7 +236,7 @@ struct EmailListView: View {
     private func processEmailsForAI(for account: EmailAccount) {
         Task {
             do {
-                try await processingService.processUnprocessedEmails(for: account)
+                try await emailService.processExistingEmails(for: account)
                 showProcessingAlert = true
             } catch {
                 print("Processing failed: \(error.localizedDescription)")

@@ -4,7 +4,7 @@
 //
 //  Retrieval-Augmented Generation service
 //  Orchestrates embedding, search, and LLM for answering questions
-//
+//  Uses backend API for all RAG operations
 
 import Foundation
 import SwiftData
@@ -17,9 +17,6 @@ class RAGService: ObservableObject {
     @Published var processingStatus: String = ""
     @Published var lastError: String?
     
-    private let embeddingService = EmbeddingService.shared
-    private let vectorDBService = VectorDBService.shared
-    private let llmService = LLMService.shared
     private let apiClient = APIClient.shared
     
     private init() {}
@@ -30,14 +27,14 @@ class RAGService: ObservableObject {
         processingStatus = "Processing journal entry..."
         
         do {
-            let content = embeddingService.prepareText(entry.fullText)
-            
-            try await vectorDBService.upsert(
+            // Send to backend for embedding and storage
+            let upsertRequest = UpsertRequest(
                 id: entry.id.uuidString,
-                content: content,
-                type: VectorDBService.DocumentType.journalEntry.rawValue,
+                content: entry.fullText,
                 metadata: entry.metadata
             )
+            
+            try await apiClient.upsert(request: upsertRequest)
             
             entry.isEmbedded = true
             entry.embeddingId = entry.id.uuidString
@@ -58,14 +55,14 @@ class RAGService: ObservableObject {
         processingStatus = "Processing profile item..."
         
         do {
-            let content = embeddingService.prepareText(item.fullText)
-            
-            try await vectorDBService.upsert(
+            // Send to backend for embedding and storage
+            let upsertRequest = UpsertRequest(
                 id: item.id.uuidString,
-                content: content,
-                type: VectorDBService.DocumentType.profileItem.rawValue,
+                content: item.fullText,
                 metadata: item.metadata
             )
+            
+            try await apiClient.upsert(request: upsertRequest)
             
             item.isEmbedded = true
             item.embeddingId = item.id.uuidString
@@ -86,44 +83,27 @@ class RAGService: ObservableObject {
         processingStatus = "Searching your journal..."
         
         do {
-            // 1. Search for relevant documents
-            let searchResults = try await vectorDBService.search(query: query)
+            // Send query to backend RAG endpoint
+            let chatRequest = ChatRequest(message: query)
+            let response = try await apiClient.chat(request: chatRequest)
             
-            // 2. Extract context from results
+            // Convert backend contexts to ChatContext
             var contexts: [ChatContext] = []
-            var contextTexts: [String] = []
-            
-            for result in searchResults {
-                let docType = (result.metadata["type"]?.value as? String) ?? "unknown"
-                let title = (result.metadata["title"]?.value as? String) ?? "Untitled"
-                let content = result.content ?? ""
-                
+            for result in response.contexts {
                 let chatContext = ChatContext(
                     documentId: result.id,
-                    documentType: docType,
-                    title: title,
-                    snippet: String(content.prefix(300)),
-                    relevanceScore: result.score,
+                    documentType: result.type,
+                    title: result.title,
+                    snippet: result.snippet,
+                    relevanceScore: Float(result.score),
                     date: nil
                 )
                 contexts.append(chatContext)
-                contextTexts.append(content)
-            }
-            
-            processingStatus = "Generating response..."
-            
-            // 3. Generate response using LLM
-            let response: String
-            if contextTexts.isEmpty {
-                response = "I don't have enough information in your journal to answer that question. Try adding more entries about this topic, or rephrase your question."
-            } else {
-                let chatResponse = try await apiClient.chat(message: query)
-                response = chatResponse.response
             }
             
             lastError = nil
             isProcessing = false
-            return (response, contexts)
+            return (response.response, contexts)
             
         } catch {
             lastError = error.localizedDescription
@@ -147,13 +127,13 @@ class RAGService: ObservableObject {
             processingStatus = "Syncing \(currentIndex)/\(totalCount)..."
             
             do {
-                let content = embeddingService.prepareText(entry.fullText)
-                try await vectorDBService.upsert(
+                let upsertRequest = UpsertRequest(
                     id: entry.id.uuidString,
-                    content: content,
-                    type: VectorDBService.DocumentType.journalEntry.rawValue,
+                    content: entry.fullText,
                     metadata: entry.metadata
                 )
+                try await apiClient.upsert(request: upsertRequest)
+                
                 entry.isEmbedded = true
                 entry.embeddingId = entry.id.uuidString
                 successCount += 1
@@ -168,13 +148,13 @@ class RAGService: ObservableObject {
             processingStatus = "Syncing \(currentIndex)/\(totalCount)..."
             
             do {
-                let content = embeddingService.prepareText(item.fullText)
-                try await vectorDBService.upsert(
+                let upsertRequest = UpsertRequest(
                     id: item.id.uuidString,
-                    content: content,
-                    type: VectorDBService.DocumentType.profileItem.rawValue,
+                    content: item.fullText,
                     metadata: item.metadata
                 )
+                try await apiClient.upsert(request: upsertRequest)
+                
                 item.isEmbedded = true
                 item.embeddingId = item.id.uuidString
                 successCount += 1
@@ -193,7 +173,8 @@ class RAGService: ObservableObject {
         guard let embeddingId = entry.embeddingId else { return }
         
         do {
-            try await vectorDBService.delete(id: embeddingId)
+            let deleteRequest = DeleteRequest(id: embeddingId)
+            try await apiClient.delete(request: deleteRequest)
         } catch {
             lastError = error.localizedDescription
         }
@@ -203,7 +184,8 @@ class RAGService: ObservableObject {
         guard let embeddingId = item.embeddingId else { return }
         
         do {
-            try await vectorDBService.delete(id: embeddingId)
+            let deleteRequest = DeleteRequest(id: embeddingId)
+            try await apiClient.delete(request: deleteRequest)
         } catch {
             lastError = error.localizedDescription
         }
@@ -225,7 +207,8 @@ class RAGService: ObservableObject {
         """
         
         do {
-            let response = try await apiClient.chat(message: prompt)
+            let chatRequest = ChatRequest(message: prompt)
+            let response = try await apiClient.chat(request: chatRequest)
             isProcessing = false
             return response.response
         } catch {

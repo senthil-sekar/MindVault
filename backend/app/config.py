@@ -3,6 +3,7 @@ MindVault Backend Configuration
 """
 
 import os
+from typing import Optional
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -18,8 +19,8 @@ class Settings(BaseSettings):
     qdrant_collection: str = "mindvault"
     
     # Qdrant - Cloud (optional)
-    qdrant_url: str | None = None
-    qdrant_api_key: str | None = None
+    qdrant_url: Optional[str] = None
+    qdrant_api_key: Optional[str] = None
     
     # Server
     host: str = "0.0.0.0"
@@ -38,7 +39,7 @@ class Settings(BaseSettings):
     
     # RAG
     rag_top_k: int = 5
-    rag_min_score: float = 0.5
+    rag_min_score: float = 0.2  # Lowered from 0.5 to allow more results
     
     class Config:
         env_file = ".env"
