@@ -18,66 +18,188 @@ A personal AI-powered journal assistant that remembers everything about you. Wri
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    iOS App (SwiftUI + SwiftData)                │
-│                                                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────────┐   │
-│  │   Journal    │  │   AI Chat    │  │  Profile/Skills   │   │
-│  │   ────────   │  │   ────────   │  │   ────────────    │   │
-│  │ • Categories │  │ • RAG Chat   │  │ • Skills          │   │
-│  │ • Tags       │  │ • Context    │  │ • Education       │   │
-│  │ • Moods      │  │ • History    │  │ • Experience      │   │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬──────────┘   │
-│         │                 │                    │               │
-│         └─────────────────┴────────────────────┘               │
-│                           │                                    │
-│              ┌────────────▼────────────┐                       │
-│              │  Services Layer         │                       │
-│              │  ─────────────────      │                       │
-│              │  • RAGService           │                       │
-│              │  • APIClient            │                       │
-│              │  • SwiftData Models     │                       │
-│              └────────────┬────────────┘                       │
-└───────────────────────────┼─────────────────────────────────────┘
-                            │ HTTP/JSON (localhost:8000)
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend (Python)                     │
-│                                                                 │
-│  API Endpoints:                                                 │
-│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐     │
-│  │ /embed   │ /search  │ /chat    │ /upsert  │ /delete  │     │
-│  └────┬─────┴────┬─────┴────┬─────┴────┬─────┴────┬─────┘     │
-│       │          │          │          │          │            │
-│       └──────────┴──────────┴──────────┴──────────┘            │
-│                           │                                    │
-│              ┌────────────▼────────────┐                       │
-│              │   RAG Service           │                       │
-│              │   ─────────────         │                       │
-│              │   1. Generate embedding │                       │
-│              │   2. Search vectors     │                       │
-│              │   3. Build context      │                       │
-│              │   4. Call LLM           │                       │
-│              └─────┬───────────┬───────┘                       │
-│                    │           │                               │
-│         ┌──────────▼──┐    ┌───▼──────────┐                   │
-│         │  OpenAI API │    │   Qdrant     │                   │
-│         │  ─────────  │    │   ──────     │                   │
-│         │  • Embed    │    │  • 1536 dim  │                   │
-│         │  • GPT-4    │    │  • Cosine    │                   │
-│         └─────────────┘    │  • Metadata  │                   │
-│                            └──────────────┘                    │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph iOS["iOS App - SwiftUI + SwiftData"]
+        UI["User Interface"]
+        Journal["📝 Journal View<br/>• Categories<br/>• Tags<br/>• Moods"]
+        Chat["💬 Chat View<br/>• RAG Chat<br/>• Context<br/>• History"]
+        Profile["👤 Profile View<br/>• Skills<br/>• Education<br/>• Experience"]
+        Email["📧 Email View<br/>• Gmail Sync<br/>• Processing<br/>• AI Context"]
+        
+        UI --> Journal
+        UI --> Chat
+        UI --> Profile
+        UI --> Email
+        
+        subgraph Services["Services Layer"]
+            RAGService["RAGService"]
+            APIClient["APIClient"]
+            EmailService["EmailService"]
+            SwiftData["SwiftData Models"]
+        end
+        
+        Journal --> RAGService
+        Chat --> RAGService
+        Profile --> RAGService
+        Email --> EmailService
+        
+        RAGService --> APIClient
+        EmailService --> APIClient
+        APIClient --> SwiftData
+    end
+    
+    APIClient -->|"HTTP/JSON<br/>localhost:8000"| Backend
+    
+    subgraph Backend["FastAPI Backend - Python"]
+        FastAPI["FastAPI Server"]
+        
+        subgraph Endpoints["API Endpoints"]
+            Health["/health"]
+            Embed["/api/embed"]
+            Upsert["/api/upsert"]
+            Delete["/api/delete"]
+            Search["/api/search"]
+            ChatAPI["/api/chat"]
+            Stats["/api/stats"]
+        end
+        
+        FastAPI --> Health
+        FastAPI --> Embed
+        FastAPI --> Upsert
+        FastAPI --> Delete
+        FastAPI --> Search
+        FastAPI --> ChatAPI
+        FastAPI --> Stats
+        
+        subgraph RAGPipeline["RAG Pipeline"]
+            RAGSvc["RAG Service"]
+            EmbedSvc["Embedding Service"]
+            VectorSvc["Vector DB Service"]
+            LLMSvc["LLM Service"]
+            
+            RAGSvc --> EmbedSvc
+            RAGSvc --> VectorSvc
+            RAGSvc --> LLMSvc
+        end
+        
+        Embed --> EmbedSvc
+        Upsert --> RAGSvc
+        Delete --> VectorSvc
+        Search --> RAGSvc
+        ChatAPI --> RAGSvc
+    end
+    
+    subgraph External["External Services"]
+        Ollama["🦙 Ollama<br/>• Local LLM<br/>• llama3.2:3b<br/>• Free & Private"]
+        OpenAI["☁️ OpenAI API<br/>• GPT-4<br/>• text-embedding<br/>• Cloud Option"]
+        Qdrant["🔍 Qdrant Vector DB<br/>• 384 dimensions<br/>• Cosine similarity<br/>• Metadata filtering"]
+        Gmail["📧 Gmail API<br/>• OAuth 2.0<br/>• Email Sync<br/>• Auto-process"]
+    end
+    
+    LLMSvc -.->|"Default"| Ollama
+    LLMSvc -.->|"Optional"| OpenAI
+    EmbedSvc --> Qdrant
+    VectorSvc --> Qdrant
+    EmailService -.->|"OAuth"| Gmail
+    
+    style iOS fill:#e1f5ff,stroke:#01579b,stroke-width:3px
+    style Backend fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
+    style External fill:#fff3e0,stroke:#e65100,stroke-width:3px
+    style Ollama fill:#90ee90,stroke:#006400,stroke-width:2px
+    style OpenAI fill:#add8e6,stroke:#00008b,stroke-width:2px
+    style Qdrant fill:#ffd700,stroke:#ff8c00,stroke-width:2px
+    style Gmail fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px
 ```
 
 ### RAG Pipeline Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant iOS as iOS App
+    participant API as FastAPI
+    participant Embed as Embedding Service
+    participant VectorDB as Qdrant
+    participant LLM as Ollama/OpenAI
+    
+    Note over User,LLM: 1. Indexing Flow
+    User->>iOS: Write Journal Entry
+    iOS->>API: POST /api/upsert
+    API->>Embed: Generate Embedding
+    Embed->>VectorDB: Store Vector + Metadata
+    VectorDB-->>API: Success
+    API-->>iOS: Indexed
+    
+    Note over User,LLM: 2. Query Flow
+    User->>iOS: Ask Question
+    iOS->>API: POST /api/chat
+    API->>Embed: Generate Query Embedding
+    Embed->>VectorDB: Search Similar Vectors
+    VectorDB-->>API: Top K Results (with context)
+    API->>LLM: Prompt + Context
+    LLM-->>API: Generated Response
+    API-->>iOS: Response + Sources
+    iOS-->>User: Display Answer
 ```
-User Entry → Generate Embedding → Store in Qdrant
-     ↓                                      ↓
-User Query → Generate Embedding → Search Similar → Get Context
-     ↓                                      ↓
-Build Prompt + Context → GPT-4 → Response + Source Docs
+
+### Data Flow Architecture
+
+```mermaid
+flowchart LR
+    subgraph Input["📥 Data Input"]
+        J[Journal Entry]
+        P[Profile Item]
+        E[Email Message]
+        Q[User Query]
+    end
+    
+    subgraph Processing["⚙️ Processing"]
+        T[Text Processing]
+        V[Vectorization<br/>384-dim]
+        M[Metadata<br/>Extraction]
+    end
+    
+    subgraph Storage["💾 Storage"]
+        SD[SwiftData<br/>Local DB]
+        QD[Qdrant<br/>Vector DB]
+    end
+    
+    subgraph Retrieval["🔍 Retrieval"]
+        S[Semantic Search]
+        F[Metadata Filtering]
+        R[Ranking & Scoring]
+    end
+    
+    subgraph Generation["🤖 Generation"]
+        C[Context Building]
+        L[LLM Prompting]
+        A[Answer Generation]
+    end
+    
+    J --> T
+    P --> T
+    E --> T
+    T --> V
+    T --> M
+    V --> QD
+    M --> QD
+    T --> SD
+    
+    Q --> V
+    V --> S
+    S --> QD
+    QD --> F
+    F --> R
+    R --> C
+    C --> L
+    L --> A
+    
+    style Input fill:#e3f2fd,stroke:#1565c0
+    style Processing fill:#f3e5f5,stroke:#6a1b9a
+    style Storage fill:#fff3e0,stroke:#ef6c00
+    style Retrieval fill:#e8f5e9,stroke:#2e7d32
+    style Generation fill:#fce4ec,stroke:#c2185b
 ```
 
 ## Prerequisites
