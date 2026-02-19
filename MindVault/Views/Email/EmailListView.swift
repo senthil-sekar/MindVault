@@ -20,6 +20,8 @@ struct EmailListView: View {
     @State private var selectedAccount: EmailAccount?
     @State private var showSyncProgress = false
     @State private var showProcessingAlert = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
     
     init(modelContext: ModelContext) {
         _emailService = StateObject(wrappedValue: EmailService(modelContext: modelContext))
@@ -48,12 +50,51 @@ struct EmailListView: View {
                         }
                         
                         if let account = accounts.first {
+                            // Quick sync (latest 50 emails)
                             Button {
                                 syncEmails(for: account)
                             } label: {
-                                Label("Sync Emails", systemImage: "arrow.clockwise")
+                                Label("Quick Sync", systemImage: "arrow.clockwise")
                             }
                             .disabled(emailService.isSyncing)
+                            
+                            // Full sync (latest 200 emails)
+                            Button {
+                                fullSyncEmails(for: account)
+                            } label: {
+                                Label("Full Sync (200 emails)", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                            .disabled(emailService.isSyncing)
+                            
+                            Divider()
+                            
+                            // Cleanup deleted emails
+                            Button {
+                                cleanupDeletedEmails(for: account)
+                            } label: {
+                                Label("Cleanup Deleted", systemImage: "trash.circle")
+                            }
+                            .disabled(emailService.isSyncing)
+                            
+                            // Clear all & resync
+                            Button(role: .destructive) {
+                                clearAllAndResync(for: account)
+                            } label: {
+                                Label("Clear All & Resync", systemImage: "trash.fill")
+                            }
+                            .disabled(emailService.isSyncing)
+                            
+                            Divider()
+                            
+                            // Auto-sync toggle
+                            Button {
+                                emailService.toggleAutoSync(for: account)
+                            } label: {
+                                Label(
+                                    emailService.autoSyncEnabled ? "Disable Auto-Sync" : "Enable Auto-Sync",
+                                    systemImage: emailService.autoSyncEnabled ? "clock.badge.checkmark" : "clock"
+                                )
+                            }
                             
                             Divider()
                             
@@ -63,6 +104,15 @@ struct EmailListView: View {
                                 Label("Process for AI", systemImage: "brain")
                             }
                             .disabled(processingService.isProcessing)
+                            
+                            Divider()
+                            
+                            // Disconnect account
+                            Button(role: .destructive) {
+                                disconnectAccount(account)
+                            } label: {
+                                Label("Disconnect Account", systemImage: "person.crop.circle.badge.minus")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -74,6 +124,15 @@ struct EmailListView: View {
             }
             .sheet(item: $selectedMessage) { message in
                 EmailDetailView(message: message, modelContext: modelContext)
+            }
+            .onAppear {
+                // Start auto-sync when view appears
+                if let account = accounts.first, account.isConnected {
+                    emailService.startAutoSync(for: account)
+                }
+            }
+            .onDisappear {
+                emailService.stopAutoSync()
             }
             .overlay {
                 if emailService.isSyncing {
@@ -88,6 +147,11 @@ struct EmailListView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Emails have been processed and added to AI context.")
+            }
+            .alert("Sync Error", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage)
             }
         }
     }
@@ -141,18 +205,57 @@ struct EmailListView: View {
             }
             
             if let account = accounts.first {
-                Button {
-                    syncEmails(for: account)
-                } label: {
-                    Label("Sync Now", systemImage: "arrow.clockwise")
-                        .font(.headline)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
+                // Check if account is connected
+                if !account.isConnected {
+                    VStack(spacing: 12) {
+                        Text("Account disconnected")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        
+                        Button {
+                            showAccountConnection = true
+                        } label: {
+                            Label("Reconnect Account", systemImage: "arrow.triangle.2.circlepath")
+                                .font(.headline)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 12)
+                                .background(Color.orange)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                        }
+                    }
+                } else {
+                    VStack(spacing: 12) {
+                        if emailService.isSyncing {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                            Text("Syncing...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Button {
+                                syncEmails(for: account)
+                            } label: {
+                                Label("Sync Now", systemImage: "arrow.clockwise")
+                                    .font(.headline)
+                                    .padding(.horizontal, 24)
+                                    .padding(.vertical, 12)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                        }
+                        
+                        // Show last error if any
+                        if let error = emailService.lastError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                    }
                 }
-                .disabled(emailService.isSyncing)
             }
         }
     }
@@ -165,6 +268,9 @@ struct EmailListView: View {
                     .onTapGesture {
                         selectedMessage = message
                     }
+            }
+            .onDelete { indexSet in
+                deleteEmails(at: indexSet)
             }
         }
         .listStyle(.plain)
@@ -229,7 +335,68 @@ struct EmailListView: View {
                 try await emailService.syncEmails(for: account, limit: 50)
             } catch {
                 print("Sync failed: \(error.localizedDescription)")
+                errorMessage = "Sync failed: \(error.localizedDescription)"
+                showErrorAlert = true
             }
+        }
+    }
+    
+    private func fullSyncEmails(for account: EmailAccount) {
+        Task {
+            do {
+                try await emailService.syncEmails(for: account, limit: 200)
+            } catch {
+                print("Full sync failed: \(error.localizedDescription)")
+                errorMessage = "Full sync failed: \(error.localizedDescription)"
+                showErrorAlert = true
+            }
+        }
+    }
+    
+    private func cleanupDeletedEmails(for account: EmailAccount) {
+        Task {
+            do {
+                try await emailService.cleanupDeletedEmails(for: account)
+            } catch {
+                print("Cleanup failed: \(error.localizedDescription)")
+                errorMessage = "Cleanup failed: \(error.localizedDescription)"
+                showErrorAlert = true
+            }
+        }
+    }
+    
+    private func clearAllAndResync(for account: EmailAccount) {
+        Task {
+            do {
+                try await emailService.clearAllEmailsAndResync(for: account)
+            } catch {
+                print("Clear & resync failed: \(error.localizedDescription)")
+                errorMessage = "Clear & resync failed: \(error.localizedDescription)"
+                showErrorAlert = true
+            }
+        }
+    }
+    
+    private func deleteEmails(at offsets: IndexSet) {
+        Task {
+            for index in offsets {
+                let email = messages[index]
+                
+                // Delete from vector DB if processed
+                if email.isProcessedForAI {
+                    do {
+                        try await APIClient.shared.delete(id: email.id.uuidString)
+                        print("✅ Deleted from vector DB: \(email.subject)")
+                    } catch {
+                        print("⚠️ Failed to delete from vector DB: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Delete from local DB
+                modelContext.delete(email)
+            }
+            
+            try? modelContext.save()
         }
     }
     
@@ -241,6 +408,25 @@ struct EmailListView: View {
             } catch {
                 print("Processing failed: \(error.localizedDescription)")
             }
+        }
+    }
+    
+    private func disconnectAccount(_ account: EmailAccount) {
+        Task {
+            // Delete all emails for this account from vector DB
+            let accountEmails = messages.filter { $0.account?.id == account.id }
+            for email in accountEmails {
+                if email.isProcessedForAI {
+                    try? await APIClient.shared.delete(id: email.id.uuidString)
+                }
+                modelContext.delete(email)
+            }
+            
+            // Delete the account itself
+            modelContext.delete(account)
+            try? modelContext.save()
+            
+            print("✅ Account disconnected and all data removed")
         }
     }
 }

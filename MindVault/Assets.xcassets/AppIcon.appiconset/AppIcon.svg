@@ -1,0 +1,77 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Main gradient - vibrant blue to purple -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+    
+    <!-- Vault shine -->
+    <linearGradient id="vaultShine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="50%" style="stop-color:#F1F5F9"/>
+      <stop offset="100%" style="stop-color:#E2E8F0"/>
+    </linearGradient>
+    
+    <!-- Mind glow gradient -->
+    <linearGradient id="mindGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06B6D4"/>
+      <stop offset="100%" style="stop-color:#8B5CF6"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background rounded square -->
+  <rect width="1024" height="1024" rx="224" fill="url(#bgGrad)"/>
+  
+  <!-- Vault door - main circle -->
+  <circle cx="512" cy="512" r="320" fill="url(#vaultShine)"/>
+  
+  <!-- Vault door - inner ring -->
+  <circle cx="512" cy="512" r="260" fill="none" stroke="#CBD5E1" stroke-width="12"/>
+  
+  <!-- Vault door - decorative bolts -->
+  <circle cx="300" cy="512" r="20" fill="#94A3B8"/>
+  <circle cx="724" cy="512" r="20" fill="#94A3B8"/>
+  <circle cx="512" cy="300" r="20" fill="#94A3B8"/>
+  <circle cx="512" cy="724" r="20" fill="#94A3B8"/>
+  
+  <!-- Brain/Mind icon - simplified and bold -->
+  <!-- Left hemisphere -->
+  <path d="M380 480 
+           C340 480, 320 520, 330 560 
+           C340 600, 380 640, 440 640
+           C460 640, 480 620, 490 590
+           C500 560, 490 530, 480 510
+           C470 490, 420 480, 380 480Z" 
+        fill="url(#mindGlow)" 
+        opacity="0.9"/>
+  
+  <!-- Right hemisphere -->
+  <path d="M644 480 
+           C684 480, 704 520, 694 560 
+           C684 600, 644 640, 584 640
+           C564 640, 544 620, 534 590
+           C524 560, 534 530, 544 510
+           C554 490, 604 480, 644 480Z" 
+        fill="url(#mindGlow)" 
+        opacity="0.9"/>
+  
+  <!-- Brain connection curves -->
+  <path d="M440 520 Q512 450 584 520" fill="none" stroke="#6366F1" stroke-width="16" stroke-linecap="round"/>
+  <path d="M420 570 Q512 500 604 570" fill="none" stroke="#8B5CF6" stroke-width="12" stroke-linecap="round" opacity="0.8"/>
+  
+  <!-- Central AI core -->
+  <circle cx="512" cy="540" r="40" fill="#FFFFFF"/>
+  <circle cx="512" cy="540" r="24" fill="url(#mindGlow)"/>
+  
+  <!-- Neural spark dots -->
+  <circle cx="380" cy="540" r="14" fill="#FFFFFF" opacity="0.9"/>
+  <circle cx="644" cy="540" r="14" fill="#FFFFFF" opacity="0.9"/>
+  <circle cx="440" cy="600" r="10" fill="#FFFFFF" opacity="0.7"/>
+  <circle cx="584" cy="600" r="10" fill="#FFFFFF" opacity="0.7"/>
+  
+  <!-- Vault handle at top -->
+  <rect x="472" y="360" width="80" height="50" rx="10" fill="#6366F1"/>
+  <circle cx="512" cy="410" r="20" fill="none" stroke="#FFFFFF" stroke-width="6"/>
+  
+</svg>

@@ -39,6 +39,12 @@ struct MainTabView: View {
                 }
                 .tag(AppState.Tab.chat)
             
+            DriveView()
+                .tabItem {
+                    Label(AppState.Tab.drive.rawValue, systemImage: AppState.Tab.drive.icon)
+                }
+                .tag(AppState.Tab.drive)
+            
             ProfileView()
                 .tabItem {
                     Label(AppState.Tab.profile.rawValue, systemImage: AppState.Tab.profile.icon)

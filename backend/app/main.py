@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.models import (
     EmbedRequest, EmbedResponse,
-    UpsertRequest, DeleteRequest,
+    UpsertRequest, EmailUpsertRequest, DocumentUpsertRequest, DeleteRequest,
     SearchRequest, SearchResponse,
     ChatRequest, ChatResponse,
     HealthResponse
@@ -24,6 +24,17 @@ from app.services import (
     llm_service,
     rag_service
 )
+
+# Agent orchestrator - lazy loaded after services are ready
+_orchestrator = None
+
+def get_orchestrator():
+    """Lazy-load the agent orchestrator."""
+    global _orchestrator
+    if _orchestrator is None:
+        from app.agents.orchestrator import agent_orchestrator
+        _orchestrator = agent_orchestrator
+    return _orchestrator
 
 # Configure logging
 logging.basicConfig(
@@ -123,6 +134,33 @@ async def upsert_document(request: UpsertRequest):
         return {"status": "success", "id": request.id}
     except Exception as e:
         logger.error(f"Upsert error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/upsert/email")
+async def upsert_email(request: EmailUpsertRequest):
+    """
+    Add or update an email with improved processing.
+    
+    This endpoint:
+    1. Cleans the email (removes signatures, disclaimers, HTML noise)
+    2. Chunks long emails with context preservation
+    3. Creates rich metadata for hybrid search (names, dates, subjects)
+    4. Stores chunks in vector DB for optimal retrieval
+    """
+    try:
+        await rag_service.upsert_email(
+            email_id=request.id,
+            raw_content=request.content,
+            subject=request.subject,
+            sender=request.sender,
+            date=request.date,
+            thread_id=request.thread_id,
+            labels=request.labels
+        )
+        return {"status": "success", "id": request.id}
+    except Exception as e:
+        logger.error(f"Email upsert error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

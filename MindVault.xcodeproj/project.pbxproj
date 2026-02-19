@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D030D84A2F46C29800A9B610 /* DriveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D030D8482F46C29800A9B610 /* DriveView.swift */; };
+		D030D84C2F46C2AD00A9B610 /* DriveDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = D030D84B2F46C2AD00A9B610 /* DriveDocument.swift */; };
+		D030D84E2F46C2B600A9B610 /* DriveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D030D84D2F46C2B600A9B610 /* DriveService.swift */; };
 		D0954EF42F37A77900A58439 /* TextToSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF32F37A77900A58439 /* TextToSpeechService.swift */; };
 		D0954EF52F37A77900A58439 /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */; };
 		D0954EF92F37B90500A58439 /* EmailProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF62F37B90500A58439 /* EmailProcessingService.swift */; };
@@ -38,6 +41,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D030D8482F46C29800A9B610 /* DriveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveView.swift; sourceTree = "<group>"; };
+		D030D84B2F46C2AD00A9B610 /* DriveDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveDocument.swift; sourceTree = "<group>"; };
+		D030D84D2F46C2B600A9B610 /* DriveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveService.swift; sourceTree = "<group>"; };
 		D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
 		D0954EF32F37A77900A58439 /* TextToSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextToSpeechService.swift; sourceTree = "<group>"; };
 		D0954EF62F37B90500A58439 /* EmailProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailProcessingService.swift; sourceTree = "<group>"; };
@@ -70,6 +76,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		D030D8492F46C29800A9B610 /* Drive */ = {
+			isa = PBXGroup;
+			children = (
+				D030D8482F46C29800A9B610 /* DriveView.swift */,
+			);
+			path = Drive;
+			sourceTree = "<group>";
+		};
 		D0F142272F38415900D51670 /* Email */ = {
 			isa = PBXGroup;
 			children = (
@@ -113,6 +127,7 @@
 		E01234570004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				D030D84B2F46C2AD00A9B610 /* DriveDocument.swift */,
 				D0C870CD2F37F5BE0003AF7B /* EmailAccount.swift */,
 				D0C870CE2F37F5BE0003AF7B /* EmailMessage.swift */,
 				E01234560104 /* JournalEntry.swift */,
@@ -125,6 +140,7 @@
 		E01234570005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D030D8492F46C29800A9B610 /* Drive */,
 				D0F142272F38415900D51670 /* Email */,
 				E01234570008 /* Journal */,
 				E01234570009 /* Chat */,
@@ -136,6 +152,7 @@
 		E01234570006 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				D030D84D2F46C2B600A9B610 /* DriveService.swift */,
 				D0954EF62F37B90500A58439 /* EmailProcessingService.swift */,
 				D0954EF72F37B90500A58439 /* EmailService.swift */,
 				D0954EF82F37B90500A58439 /* KeychainService.swift */,
@@ -255,11 +272,13 @@
 			files = (
 				E01234562001 /* MindVaultApp.swift in Sources */,
 				E01234562002 /* ContentView.swift in Sources */,
+				D030D84E2F46C2B600A9B610 /* DriveService.swift in Sources */,
 				D0F142282F38415900D51670 /* EmailDetailView.swift in Sources */,
 				D0F142292F38415900D51670 /* EmailListView.swift in Sources */,
 				D0F1422A2F38415900D51670 /* EmailAccountConnectionView.swift in Sources */,
 				D0954EF42F37A77900A58439 /* TextToSpeechService.swift in Sources */,
 				D0954EF52F37A77900A58439 /* SpeechRecognitionService.swift in Sources */,
+				D030D84C2F46C2AD00A9B610 /* DriveDocument.swift in Sources */,
 				D0954EF92F37B90500A58439 /* EmailProcessingService.swift in Sources */,
 				D0C870CF2F37F5BE0003AF7B /* EmailMessage.swift in Sources */,
 				D0C870D02F37F5BE0003AF7B /* EmailAccount.swift in Sources */,
@@ -280,6 +299,7 @@
 				E01234562016 /* RAGService.swift in Sources */,
 				E01234562017 /* APIClient.swift in Sources */,
 				E01234562018 /* Configuration.swift in Sources */,
+				D030D84A2F46C29800A9B610 /* DriveView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

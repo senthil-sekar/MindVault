@@ -9,8 +9,10 @@ import Foundation
 
 enum Configuration {
     // MARK: - Server Configuration
+    // Use your Mac's IP address for iOS Simulator to connect
+    // localhost doesn't work from the simulator!
     static var serverURL: String {
-        UserDefaults.standard.string(forKey: "serverURL") ?? "http://localhost:8000"
+        UserDefaults.standard.string(forKey: "serverURL") ?? "http://192.168.1.24:8000"
     }
     
     static var openAIKey: String {
@@ -24,13 +26,15 @@ enum Configuration {
         static var chat: String { "\(serverURL)/api/chat" }
         static var health: String { "\(serverURL)/health" }
         static var upsert: String { "\(serverURL)/api/upsert" }
+        static var upsertEmail: String { "\(serverURL)/api/upsert/email" }
+        static var upsertDocument: String { "\(serverURL)/api/upsert/document" }
         static var delete: String { "\(serverURL)/api/delete" }
     }
     
     // MARK: - RAG Configuration
     enum RAG {
         static let topK = 5  // Number of documents to retrieve
-        static let minRelevanceScore: Float = 0.2  // Lowered from 0.5 to allow more results
+        static let minRelevanceScore: Float = 0.1  // Very low to catch generic queries
         static let maxContextTokens = 4000
         static let embeddingModel = "text-embedding-3-small"
         static let embeddingDimension = 1536

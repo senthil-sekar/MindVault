@@ -130,15 +130,20 @@ struct ChatView: View {
                         MessageBubble(
                             message: message,
                             onShowContext: {
-                                if let snippets = message.contextSnippets,
-                                   let ids = message.contextIds {
-                                    currentContext = zip(ids, snippets).map { id, snippet in
+                                if let ids = message.contextIds,
+                                   let snippets = message.contextSnippets,
+                                   !ids.isEmpty {
+                                    let titles = message.contextTitles ?? Array(repeating: "Source", count: ids.count)
+                                    let types = message.contextTypes ?? Array(repeating: "document", count: ids.count)
+                                    let scores = message.contextScores ?? Array(repeating: Float(0), count: ids.count)
+                                    
+                                    currentContext = (0..<ids.count).map { i in
                                         ChatContext(
-                                            documentId: id,
-                                            documentType: "journal",
-                                            title: "Context",
-                                            snippet: snippet,
-                                            relevanceScore: 0,
+                                            documentId: ids[i],
+                                            documentType: types[i],
+                                            title: titles[i],
+                                            snippet: snippets[i],
+                                            relevanceScore: scores[i],
                                             date: nil
                                         )
                                     }
@@ -271,7 +276,10 @@ struct ChatView: View {
                         role: MessageRole.assistant.rawValue,
                         conversationId: currentConversation!.id,
                         contextIds: contexts.map { $0.documentId },
-                        contextSnippets: contexts.map { $0.snippet }
+                        contextSnippets: contexts.map { $0.snippet },
+                        contextTitles: contexts.map { $0.title },
+                        contextTypes: contexts.map { $0.documentType },
+                        contextScores: contexts.map { $0.relevanceScore }
                     )
                     modelContext.insert(assistantMessage)
                     messages.append(assistantMessage)
@@ -570,24 +578,67 @@ struct ContextView: View {
     
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(contexts, id: \.documentId) { context in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "doc.text")
-                                .foregroundStyle(.indigo)
-                            Text(context.title)
-                                .font(.headline)
-                        }
-                        
-                        Text(context.snippet)
-                            .font(.body)
+            Group {
+                if contexts.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "doc.questionmark")
+                            .font(.system(size: 50))
                             .foregroundStyle(.secondary)
+                        Text("No sources available")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                        Text("The AI generated this response without retrieving specific documents.")
+                            .font(.subheadline)
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
                     }
-                    .padding(.vertical, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(contexts, id: \.documentId) { context in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: iconForType(context.documentType))
+                                        .foregroundStyle(.indigo)
+                                    Text(context.title.isEmpty ? "Untitled" : context.title)
+                                        .font(.headline)
+                                        .lineLimit(2)
+                                    Spacer()
+                                    Text(String(format: "%.0f%%", context.relevanceScore * 100))
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color.indigo.opacity(0.2))
+                                        .cornerRadius(8)
+                                }
+                                
+                                if !context.snippet.isEmpty {
+                                    Text(context.snippet)
+                                        .font(.body)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(4)
+                                }
+                                
+                                HStack {
+                                    Label(context.documentType.capitalized, systemImage: "tag")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                    
+                                    if let date = context.date {
+                                        Spacer()
+                                        Text(date, style: .date)
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                 }
             }
-            .navigationTitle("Sources")
+            .navigationTitle("Sources (\(contexts.count))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -596,6 +647,15 @@ struct ContextView: View {
                     }
                 }
             }
+        }
+    }
+    
+    private func iconForType(_ type: String) -> String {
+        switch type.lowercased() {
+        case "email": return "envelope"
+        case "journal": return "book"
+        case "profile": return "person"
+        default: return "doc.text"
         }
     }
 }

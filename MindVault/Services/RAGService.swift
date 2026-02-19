@@ -87,9 +87,14 @@ class RAGService: ObservableObject {
             let chatRequest = ChatRequest(message: query)
             let response = try await apiClient.chat(request: chatRequest)
             
+            print("📬 RAG Response received:")
+            print("   - Response length: \(response.response.count)")
+            print("   - Contexts count: \(response.contexts.count)")
+            
             // Convert backend contexts to ChatContext
             var contexts: [ChatContext] = []
             for result in response.contexts {
+                print("   📎 Context: \(result.title) (score: \(result.score))")
                 let chatContext = ChatContext(
                     documentId: result.id,
                     documentType: result.type,
@@ -100,6 +105,8 @@ class RAGService: ObservableObject {
                 )
                 contexts.append(chatContext)
             }
+            
+            print("   ✅ Returning \(contexts.count) contexts to ChatView")
             
             lastError = nil
             isProcessing = false

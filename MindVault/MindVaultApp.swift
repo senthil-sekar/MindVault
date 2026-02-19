@@ -58,12 +58,14 @@ class AppState: ObservableObject {
     enum Tab: String, CaseIterable {
         case journal = "Journal"
         case chat = "AI Chat"
+        case drive = "Drive"
         case profile = "Profile"
         
         var icon: String {
             switch self {
             case .journal: return "book.fill"
             case .chat: return "bubble.left.and.bubble.right.fill"
+            case .drive: return "externaldrive.fill"
             case .profile: return "person.fill"
             }
         }

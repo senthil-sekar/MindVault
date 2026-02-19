@@ -17,10 +17,16 @@ class EmailService: NSObject, ObservableObject {
     @Published var isSyncing: Bool = false
     @Published var syncProgress: Double = 0.0
     @Published var lastError: String?
+    @Published var autoSyncEnabled: Bool = true 
+    @Published var lastAutoSync: Date?
     
     private let modelContext: ModelContext
     private var authSession: ASWebAuthenticationSession?
     private var codeVerifier: String?
+    private var autoSyncTimer: Timer?
+    
+    // Auto-sync interval (5 minutes)
+    private let autoSyncInterval: TimeInterval = 5 * 60
     
     // Gmail OAuth Configuration
     // TODO: Replace with your actual Gmail Client ID from Google Cloud Console
@@ -35,6 +41,59 @@ class EmailService: NSObject, ObservableObject {
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         super.init()
+    }
+    
+    // MARK: - Auto Sync
+    
+    /// Start auto-sync timer for an account
+    func startAutoSync(for account: EmailAccount) {
+        guard autoSyncEnabled else { return }
+        
+        stopAutoSync()
+        
+        print("🔄 Starting auto-sync (every \(Int(autoSyncInterval/60)) minutes)")
+        
+        // Capture account ID to avoid Sendable issues
+        let accountId = account.id
+        
+        autoSyncTimer = Timer.scheduledTimer(withTimeInterval: autoSyncInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self, !self.isSyncing else { return }
+                
+                // Re-fetch account from database
+                let descriptor = FetchDescriptor<EmailAccount>()
+                guard let accounts = try? self.modelContext.fetch(descriptor),
+                      let currentAccount = accounts.first(where: { $0.id == accountId }) else {
+                    return
+                }
+                
+                print("⏰ Auto-sync triggered")
+                try? await self.syncEmails(for: currentAccount, limit: 100)
+                self.lastAutoSync = Date()
+            }
+        }
+        
+        // Run immediately on first start
+        Task {
+            try? await syncEmails(for: account, limit: 100)
+            lastAutoSync = Date()
+        }
+    }
+    
+    /// Stop auto-sync timer
+    func stopAutoSync() {
+        autoSyncTimer?.invalidate()
+        autoSyncTimer = nil
+    }
+    
+    /// Toggle auto-sync on/off
+    func toggleAutoSync(for account: EmailAccount) {
+        autoSyncEnabled.toggle()
+        if autoSyncEnabled {
+            startAutoSync(for: account)
+        } else {
+            stopAutoSync()
+        }
     }
     
     // MARK: - Configuration Validation
@@ -338,15 +397,34 @@ class EmailService: NSObject, ObservableObject {
             // Get access token from Keychain
             let accessToken = try account.getAccessToken()
             
-            // Fetch messages
+            // Fetch messages from Gmail
             let messages = try await fetchMessages(accessToken: accessToken, limit: limit)
             print("📨 Fetched \(messages.count) messages from Gmail")
             
-            syncProgress = 0.5
+            // Get the Gmail message IDs
+            let gmailMessageIds = Set(messages.map { $0.id })
             
-            // Save messages to database and process for RAG
-            for (index, message) in messages.enumerated() {
-                print("💾 Saving message \(index + 1)/\(messages.count): \(message.subject)")
+            syncProgress = 0.1
+            
+            // STEP 1: Remove deleted emails (emails in local DB but not in Gmail anymore)
+            try await removeDeletedEmails(for: account, currentGmailIds: gmailMessageIds)
+            
+            syncProgress = 0.3
+            
+            // STEP 2: Get existing local message IDs to avoid duplicates
+            let descriptor = FetchDescriptor<EmailMessage>()
+            let existingEmails = try modelContext.fetch(descriptor)
+            let existingMessageIds = Set(existingEmails.filter { $0.account?.id == account.id }.map { $0.messageId })
+            
+            // Filter to only new messages
+            let newMessages = messages.filter { !existingMessageIds.contains($0.id) }
+            print("📬 Found \(newMessages.count) new messages to sync")
+            
+            syncProgress = 0.4
+            
+            // STEP 3: Save new messages to database and process for RAG
+            for (index, message) in newMessages.enumerated() {
+                print("💾 Saving message \(index + 1)/\(newMessages.count): \(message.subject)")
                 let emailMessage = EmailMessage(
                     messageId: message.id,
                     threadId: message.threadId,
@@ -367,35 +445,26 @@ class EmailService: NSObject, ObservableObject {
                 modelContext.insert(emailMessage)
                 try modelContext.save()
                 
-                // Process this email immediately for RAG
+                // Process this email using the improved backend processing
                 do {
-                    print("  → Sending to backend: \(message.subject)")
+                    print("  → Sending to backend (improved processing): \(message.subject)")
                     let apiClient = APIClient.shared
                     
-                    // Content: Full email text that will be embedded
-                    let content = """
-                    From: \(message.from)
-                    Subject: \(message.subject)
-                    Date: \(DateFormatter().string(from: message.date))
+                    // Use the new email-specific endpoint that handles:
+                    // - HTML cleaning
+                    // - Signature/disclaimer removal
+                    // - Thread-aware chunking
+                    // - Rich metadata for hybrid search
+                    try await apiClient.upsertEmail(
+                        id: emailMessage.id.uuidString,
+                        content: message.body,
+                        subject: message.subject,
+                        sender: message.from,
+                        date: message.date,
+                        threadId: message.threadId.isEmpty ? nil : message.threadId,
+                        labels: message.labels.isEmpty ? nil : message.labels
+                    )
                     
-                    \(message.body)
-                    """
-                    
-                    // Metadata: Searchable/filterable fields only (NOT the content!)
-                    var metadata: [String: Any] = [
-                        "type": "email",
-                        "from": message.from,
-                        "subject": message.subject,
-                        "date": ISO8601DateFormatter().string(from: message.date)
-                    ]
-                    
-                    if !message.threadId.isEmpty {
-                        metadata["thread_id"] = message.threadId
-                    }
-                    
-                    print("  📤 Upsert details - Content length: \(content.count), Metadata keys: \(metadata.keys.joined(separator: ", "))")
-                    
-                    try await apiClient.upsert(id: emailMessage.id.uuidString, content: content, metadata: metadata)
                     print("✅ Email indexed: \(message.subject)")
                     emailMessage.isProcessedForAI = true
                     try modelContext.save()
@@ -403,7 +472,7 @@ class EmailService: NSObject, ObservableObject {
                     print("❌ Failed to index email \(message.subject): \(error.localizedDescription)")
                 }
                 
-                syncProgress = 0.5 + (Double(index + 1) / Double(messages.count)) * 0.5
+                syncProgress = 0.4 + (Double(index + 1) / Double(max(newMessages.count, 1))) * 0.5
             }
             
             account.lastSyncDate = Date()
@@ -418,6 +487,206 @@ class EmailService: NSObject, ObservableObject {
             lastError = error.localizedDescription
             throw error
         }
+    }
+    
+    /// Remove emails from local DB and vector DB that no longer exist in Gmail
+    private func removeDeletedEmails(for account: EmailAccount, currentGmailIds: Set<String>) async throws {
+        print("🗑️ Checking for deleted emails...")
+        
+        // Fetch all local emails for this account
+        let descriptor = FetchDescriptor<EmailMessage>()
+        let allLocalEmails = try modelContext.fetch(descriptor)
+        let accountEmails = allLocalEmails.filter { $0.account?.id == account.id }
+        
+        // Find emails that exist locally but not in Gmail anymore
+        let deletedEmails = accountEmails.filter { !currentGmailIds.contains($0.messageId) }
+        
+        if deletedEmails.isEmpty {
+            print("✅ No deleted emails to remove")
+            return
+        }
+        
+        print("🗑️ Found \(deletedEmails.count) emails to remove (deleted from Gmail)")
+        
+        let apiClient = APIClient.shared
+        
+        for email in deletedEmails {
+            print("  🗑️ Removing: \(email.subject)")
+            
+            // Remove from vector DB if it was processed
+            if email.isProcessedForAI {
+                do {
+                    try await apiClient.delete(id: email.id.uuidString)
+                    print("  ✅ Removed from vector DB: \(email.subject)")
+                } catch {
+                    print("  ⚠️ Failed to remove from vector DB: \(error.localizedDescription)")
+                }
+            }
+            
+            // Remove from local database
+            modelContext.delete(email)
+        }
+        
+        try modelContext.save()
+        print("✅ Removed \(deletedEmails.count) deleted emails")
+    }
+    
+    /// Full cleanup: Verify each local email still exists in Gmail and remove deleted ones
+    /// This is more thorough than removeDeletedEmails as it checks EVERY local email
+    func cleanupDeletedEmails(for account: EmailAccount) async throws {
+        guard account.isConnected else {
+            throw EmailServiceError.accountNotConnected
+        }
+        
+        print("🧹 Starting full email cleanup...")
+        
+        isSyncing = true
+        syncProgress = 0.0
+        lastError = nil
+        defer { isSyncing = false }
+        
+        // Refresh token if needed
+        if let expiryDate = account.tokenExpiryDate, expiryDate < Date() {
+            try await refreshAccessToken(for: account)
+        }
+        
+        let accessToken = try account.getAccessToken()
+        
+        // Fetch all local emails for this account
+        let descriptor = FetchDescriptor<EmailMessage>()
+        let allLocalEmails = try modelContext.fetch(descriptor)
+        let accountEmails = allLocalEmails.filter { $0.account?.id == account.id }
+        
+        print("📧 Checking \(accountEmails.count) local emails against Gmail...")
+        
+        var deletedCount = 0
+        let apiClient = APIClient.shared
+        
+        for (index, email) in accountEmails.enumerated() {
+            syncProgress = Double(index) / Double(accountEmails.count)
+            
+            // Check if this email still exists in Gmail
+            let exists = await checkEmailExists(messageId: email.messageId, accessToken: accessToken)
+            
+            if !exists {
+                print("  🗑️ Email deleted from Gmail: \(email.subject)")
+                
+                // Remove from vector DB
+                if email.isProcessedForAI {
+                    do {
+                        try await apiClient.delete(id: email.id.uuidString)
+                        print("    ✅ Removed from vector DB")
+                    } catch {
+                        print("    ⚠️ Failed to remove from vector DB: \(error.localizedDescription)")
+                    }
+                }
+                
+                // Remove from local DB
+                modelContext.delete(email)
+                deletedCount += 1
+            }
+        }
+        
+        try modelContext.save()
+        syncProgress = 1.0
+        print("🧹 Cleanup complete: Removed \(deletedCount) deleted emails")
+    }
+    
+    /// Clear ALL emails from local DB and vector DB, then resync fresh
+    func clearAllEmailsAndResync(for account: EmailAccount) async throws {
+        guard account.isConnected else {
+            throw EmailServiceError.accountNotConnected
+        }
+        
+        print("🗑️ Clearing all emails and resyncing fresh...")
+        
+        isSyncing = true
+        syncProgress = 0.0
+        lastError = nil
+        defer { isSyncing = false }
+        
+        let apiClient = APIClient.shared
+        
+        // Step 1: Delete all local emails for this account
+        let descriptor = FetchDescriptor<EmailMessage>()
+        let allLocalEmails = try modelContext.fetch(descriptor)
+        let accountEmails = allLocalEmails.filter { $0.account?.id == account.id }
+        
+        print("🗑️ Deleting \(accountEmails.count) local emails...")
+        
+        for (index, email) in accountEmails.enumerated() {
+            syncProgress = Double(index) / Double(accountEmails.count) * 0.3
+            
+            // Delete from vector DB if processed
+            if email.isProcessedForAI {
+                do {
+                    try await apiClient.delete(id: email.id.uuidString)
+                } catch {
+                    print("  ⚠️ Failed to delete from vector DB: \(error.localizedDescription)")
+                }
+            }
+            
+            // Delete from local DB
+            modelContext.delete(email)
+        }
+        
+        try modelContext.save()
+        print("✅ Cleared all local emails")
+        
+        syncProgress = 0.3
+        
+        // Step 2: Clear the entire vector DB collection (for emails)
+        // This ensures no orphaned embeddings remain
+        print("🗑️ Clearing vector DB...")
+        do {
+            // Delete the collection and let it be recreated
+            try await clearVectorDBEmailsCollection()
+        } catch {
+            print("  ⚠️ Could not clear vector DB collection: \(error.localizedDescription)")
+        }
+        
+        syncProgress = 0.4
+        
+        // Step 3: Resync fresh
+        print("🔄 Resyncing emails fresh...")
+        try await syncEmails(for: account, limit: 100)
+        
+        print("✨ Clear and resync complete!")
+    }
+    
+    /// Clear all email embeddings from vector DB
+    private func clearVectorDBEmailsCollection() async throws {
+        // We'll just delete the Qdrant collection and let it be recreated
+        guard let url = URL(string: "http://\(Configuration.serverURL.replacingOccurrences(of: "http://", with: "").replacingOccurrences(of: ":8000", with: "")):6333/collections/mindvault") else {
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+            print("✅ Cleared vector DB collection")
+        }
+    }
+    
+    /// Check if an email exists in Gmail
+    private func checkEmailExists(messageId: String, accessToken: String) async -> Bool {
+        let url = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages/\(messageId)?format=minimal")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                // 200 = exists, 404 = deleted
+                return httpResponse.statusCode == 200
+            }
+        } catch {
+            print("    ⚠️ Error checking email \(messageId): \(error.localizedDescription)")
+        }
+        
+        return true // Assume exists if we can't check
     }
     
     // MARK: - RAG Processing
@@ -544,7 +813,10 @@ class EmailService: NSObject, ObservableObject {
             date = Date()
         }
         
-        let body = detail.payload.body.data ?? detail.snippet
+        // Extract and decode body from Gmail API
+        // Gmail can put body in: payload.body.data OR payload.parts[].body.data
+        let body = extractEmailBody(from: detail.payload) ?? detail.snippet
+        
         let isRead = !detail.labelIds.contains("UNREAD")
         
         return GmailMessage(
@@ -562,6 +834,69 @@ class EmailService: NSObject, ObservableObject {
             labels: detail.labelIds,
             hasAttachments: detail.payload.parts?.contains(where: { $0.filename != nil && !$0.filename!.isEmpty }) ?? false
         )
+    }
+    
+    /// Extracts and decodes email body from Gmail payload
+    /// Gmail stores body either in payload.body.data or in nested payload.parts
+    private func extractEmailBody(from payload: GmailPayload) -> String? {
+        // First try: direct body data
+        if let bodyData = payload.body.data, !bodyData.isEmpty {
+            if let decoded = bodyData.base64URLDecoded() {
+                return stripHTML(decoded)
+            }
+        }
+        
+        // Second try: look in parts (multipart emails)
+        if let parts = payload.parts {
+            // Prefer plain text over HTML
+            for part in parts {
+                if let mimeType = part.mimeType, mimeType == "text/plain" {
+                    if let data = part.body?.data, !data.isEmpty {
+                        if let decoded = data.base64URLDecoded() {
+                            return decoded
+                        }
+                    }
+                }
+            }
+            
+            // Fall back to HTML if no plain text
+            for part in parts {
+                if let mimeType = part.mimeType, mimeType == "text/html" {
+                    if let data = part.body?.data, !data.isEmpty {
+                        if let decoded = data.base64URLDecoded() {
+                            return stripHTML(decoded)
+                        }
+                    }
+                }
+            }
+            
+            // Try any part with body data
+            for part in parts {
+                if let data = part.body?.data, !data.isEmpty {
+                    if let decoded = data.base64URLDecoded() {
+                        return stripHTML(decoded)
+                    }
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Strips HTML tags from content for better AI processing
+    private func stripHTML(_ html: String) -> String {
+        // Remove HTML tags
+        var text = html.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+        // Replace HTML entities
+        text = text.replacingOccurrences(of: "&nbsp;", with: " ")
+        text = text.replacingOccurrences(of: "&amp;", with: "&")
+        text = text.replacingOccurrences(of: "&lt;", with: "<")
+        text = text.replacingOccurrences(of: "&gt;", with: ">")
+        text = text.replacingOccurrences(of: "&quot;", with: "\"")
+        text = text.replacingOccurrences(of: "&#39;", with: "'")
+        // Collapse multiple whitespaces
+        text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
     private func refreshAccessToken(for account: EmailAccount) async throws {
@@ -683,6 +1018,7 @@ struct GmailBody: Codable {
 }
 
 struct GmailPart: Codable {
+    let mimeType: String?
     let filename: String?
     let body: GmailBody?
 }
@@ -743,5 +1079,30 @@ extension Data {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
+    }
+}
+
+// MARK: - String Extension for Base64URL Decoding
+
+extension String {
+    func base64URLDecoded() -> String? {
+        // Convert base64url to base64
+        var base64 = self
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        
+        // Add padding if needed
+        let remainder = base64.count % 4
+        if remainder > 0 {
+            base64 += String(repeating: "=", count: 4 - remainder)
+        }
+        
+        // Decode base64
+        guard let data = Data(base64Encoded: base64),
+              let decodedString = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        
+        return decodedString
     }
 }

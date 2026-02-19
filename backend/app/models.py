@@ -29,6 +29,29 @@ class UpsertRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class EmailUpsertRequest(BaseModel):
+    """Request to upsert an email with improved processing."""
+    id: str
+    content: str = Field(..., min_length=1, description="Raw email body (may contain HTML)")
+    subject: str = Field(..., min_length=1)
+    sender: str = Field(..., min_length=1, description="Sender in format 'Name <email>' or just 'email'")
+    date: datetime
+    thread_id: Optional[str] = None
+    labels: Optional[List[str]] = None
+
+
+class DocumentUpsertRequest(BaseModel):
+    """Request to upsert a document (PDF, DOCX, etc.) for RAG indexing."""
+    file_id: str = Field(..., description="Unique file ID (e.g., from Google Drive)")
+    filename: str = Field(..., min_length=1)
+    mime_type: str = Field(..., description="MIME type of the document")
+    content_base64: str = Field(..., description="Base64 encoded document content")
+    folder_path: Optional[str] = None
+    source: str = Field(default="google_drive", description="Source of the document")
+    web_view_link: Optional[str] = None
+    modified_time: Optional[datetime] = None
+
+
 class DeleteRequest(BaseModel):
     """Request to delete a document from the vector DB."""
     id: str

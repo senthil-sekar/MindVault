@@ -85,6 +85,49 @@ actor APIClient {
 
     }
     
+    // MARK: - Upsert Email (Improved Processing)
+    
+    /// Upsert an email with improved processing (cleaning, chunking, hybrid search metadata)
+    func upsertEmail(
+        id: String,
+        content: String,
+        subject: String,
+        sender: String,
+        date: Date,
+        threadId: String? = nil,
+        labels: [String]? = nil
+    ) async throws {
+        let url = try makeURL(Configuration.Endpoints.upsertEmail)
+        print("📧 APIClient.upsertEmail called - id: \(id), subject: \(subject)")
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Build request body
+        var body: [String: Any] = [
+            "id": id,
+            "content": content,
+            "subject": subject,
+            "sender": sender,
+            "date": ISO8601DateFormatter().string(from: date)
+        ]
+        
+        if let threadId = threadId {
+            body["thread_id"] = threadId
+        }
+        
+        if let labels = labels {
+            body["labels"] = labels
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+        print("✅ APIClient.upsertEmail succeeded - id: \(id)")
+    }
+    
     // MARK: - Delete Document
     func delete(id: String) async throws {
         let url = try makeURL(Configuration.Endpoints.delete)

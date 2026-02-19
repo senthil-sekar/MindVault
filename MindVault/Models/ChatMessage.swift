@@ -19,6 +19,9 @@ final class ChatMessage {
     // Context used for RAG
     var contextIds: [String]?  // IDs of retrieved documents
     var contextSnippets: [String]?  // Snippets shown to user
+    var contextTitles: [String]?  // Titles of documents
+    var contextTypes: [String]?  // Types (email, journal, etc.)
+    var contextScores: [Float]?  // Relevance scores
     
     // Feedback
     var isHelpful: Bool?
@@ -32,6 +35,9 @@ final class ChatMessage {
         conversationId: UUID = UUID(),
         contextIds: [String]? = nil,
         contextSnippets: [String]? = nil,
+        contextTitles: [String]? = nil,
+        contextTypes: [String]? = nil,
+        contextScores: [Float]? = nil,
         isHelpful: Bool? = nil,
         feedback: String? = nil
     ) {
@@ -42,6 +48,9 @@ final class ChatMessage {
         self.conversationId = conversationId
         self.contextIds = contextIds
         self.contextSnippets = contextSnippets
+        self.contextTitles = contextTitles
+        self.contextTypes = contextTypes
+        self.contextScores = contextScores
         self.isHelpful = isHelpful
         self.feedback = feedback
     }
