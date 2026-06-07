@@ -39,6 +39,12 @@ struct MainTabView: View {
                 }
                 .tag(AppState.Tab.chat)
             
+            EmailListView()
+                .tabItem {
+                    Label(AppState.Tab.email.rawValue, systemImage: AppState.Tab.email.icon)
+                }
+                .tag(AppState.Tab.email)
+            
             DriveView()
                 .tabItem {
                     Label(AppState.Tab.drive.rawValue, systemImage: AppState.Tab.drive.icon)

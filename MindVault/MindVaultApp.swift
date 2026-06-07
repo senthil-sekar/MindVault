@@ -58,6 +58,7 @@ class AppState: ObservableObject {
     enum Tab: String, CaseIterable {
         case journal = "Journal"
         case chat = "AI Chat"
+        case email = "Email"
         case drive = "Drive"
         case profile = "Profile"
         
@@ -65,6 +66,7 @@ class AppState: ObservableObject {
             switch self {
             case .journal: return "book.fill"
             case .chat: return "bubble.left.and.bubble.right.fill"
+            case .email: return "envelope.fill"
             case .drive: return "externaldrive.fill"
             case .profile: return "person.fill"
             }

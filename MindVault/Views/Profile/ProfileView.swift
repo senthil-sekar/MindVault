@@ -360,7 +360,7 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var emailAccounts: [EmailAccount]
     
-    @AppStorage("serverURL") private var serverURL = "http://localhost:8000"
+    @AppStorage("serverURL") private var serverURL = Configuration.defaultServerURL
     @AppStorage("openAIKey") private var openAIKey = ""
     @AppStorage("autoSync") private var autoSync = true
     
@@ -402,6 +402,9 @@ struct SettingsView: View {
                     TextField("Server URL", text: $serverURL)
                         .autocapitalization(.none)
                         .keyboardType(.URL)
+                    Text("Default: \(Configuration.defaultServerURL)\nFor iOS Simulator use your Mac's IP (not localhost).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     
                     TextField("OpenAI API Key (optional)", text: $openAIKey)
                         .autocapitalization(.none)
@@ -454,7 +457,7 @@ struct SettingsView: View {
                 EmailAccountConnectionView(modelContext: modelContext)
             }
             .sheet(isPresented: $showEmailList) {
-                EmailListView(modelContext: modelContext)
+                EmailListView()
             }
         }
     }

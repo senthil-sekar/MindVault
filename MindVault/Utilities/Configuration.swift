@@ -6,17 +6,52 @@
 //
 
 import Foundation
+import Darwin
 
 enum Configuration {
     // MARK: - Server Configuration
-    // Use your Mac's IP address for iOS Simulator to connect
-    // localhost doesn't work from the simulator!
+    // Auto-detects the Mac's local IP for iOS Simulator.
+    // Can be overridden via Settings → AI Backend → Server URL.
+
+    /// Best-guess default: use stored preference, then local IP, then localhost fallback.
+    static var defaultServerURL: String {
+        if let ip = localIPAddress() {
+            return "http://\(ip):8000"
+        }
+        return "http://localhost:8000"
+    }
+
     static var serverURL: String {
-        UserDefaults.standard.string(forKey: "serverURL") ?? "http://192.168.1.24:8000"
+        UserDefaults.standard.string(forKey: "serverURL") ?? defaultServerURL
     }
     
     static var openAIKey: String {
         UserDefaults.standard.string(forKey: "openAIKey") ?? ""
+    }
+
+    // Detect the Mac's Wi-Fi IP address at runtime so the simulator can
+    // reach the Docker backend without hardcoding a specific IP.
+    private static func localIPAddress() -> String? {
+        var address: String?
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0 else { return nil }
+        defer { freeifaddrs(ifaddr) }
+        var ptr = ifaddr
+        while ptr != nil {
+            let interface = ptr!.pointee
+            let family = interface.ifa_addr.pointee.sa_family
+            if family == UInt8(AF_INET) {
+                let name = String(cString: interface.ifa_name)
+                if name == "en0" {
+                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                    getnameinfo(interface.ifa_addr, socklen_t(interface.ifa_addr.pointee.sa_len),
+                                &hostname, socklen_t(hostname.count), nil, socklen_t(0), NI_NUMERICHOST)
+                    address = String(cString: hostname)
+                }
+            }
+            ptr = ptr!.pointee.ifa_next
+        }
+        return address
     }
     
     // MARK: - API Endpoints

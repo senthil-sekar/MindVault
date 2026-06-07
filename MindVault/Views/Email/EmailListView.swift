@@ -13,8 +13,8 @@ struct EmailListView: View {
     @Query(sort: \EmailMessage.date, order: .reverse) private var messages: [EmailMessage]
     @Query private var accounts: [EmailAccount]
     
-    @StateObject private var emailService: EmailService
-    @StateObject private var processingService: EmailProcessingService
+    @StateObject private var emailService = EmailService.placeholder
+    @StateObject private var processingService = EmailProcessingService.placeholder
     @State private var selectedMessage: EmailMessage?
     @State private var showAccountConnection = false
     @State private var selectedAccount: EmailAccount?
@@ -22,11 +22,6 @@ struct EmailListView: View {
     @State private var showProcessingAlert = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
-    
-    init(modelContext: ModelContext) {
-        _emailService = StateObject(wrappedValue: EmailService(modelContext: modelContext))
-        _processingService = StateObject(wrappedValue: EmailProcessingService(modelContext: modelContext))
-    }
     
     var body: some View {
         NavigationStack {
@@ -126,6 +121,9 @@ struct EmailListView: View {
                 EmailDetailView(message: message, modelContext: modelContext)
             }
             .onAppear {
+                // Inject modelContext into services (available after view appears)
+                emailService.setModelContext(modelContext)
+                processingService.setModelContext(modelContext)
                 // Start auto-sync when view appears
                 if let account = accounts.first, account.isConnected {
                     emailService.startAutoSync(for: account)
@@ -509,5 +507,8 @@ struct EmailMessageRow: View {
 }
 
 #Preview {
-    EmailListView(modelContext: ModelContext(try! ModelContainer(for: EmailAccount.self, EmailMessage.self)))
+    let container = try! ModelContainer(for: EmailAccount.self, EmailMessage.self)
+    return EmailListView()
+        .modelContainer(container)
 }
+

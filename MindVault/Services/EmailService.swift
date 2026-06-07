@@ -20,7 +20,7 @@ class EmailService: NSObject, ObservableObject {
     @Published var autoSyncEnabled: Bool = true 
     @Published var lastAutoSync: Date?
     
-    private let modelContext: ModelContext
+    private var modelContext: ModelContext
     private var authSession: ASWebAuthenticationSession?
     private var codeVerifier: String?
     private var autoSyncTimer: Timer?
@@ -29,18 +29,28 @@ class EmailService: NSObject, ObservableObject {
     private let autoSyncInterval: TimeInterval = 5 * 60
     
     // Gmail OAuth Configuration
-    // TODO: Replace with your actual Gmail Client ID from Google Cloud Console
-    // Get it from: https://console.cloud.google.com/apis/credentials
-    // 1. Create project 2. Enable Gmail API 3. Create OAuth Client ID (iOS)
     private let gmailClientId = "139218014357-3viojsk9bvbrqo96lbesscifdj0itdlf.apps.googleusercontent.com"
     private let gmailRedirectURI = "com.mindvault.app:/oauth2redirect"
     private let gmailAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
     private let gmailTokenURL = "https://oauth2.googleapis.com/token"
     private let gmailScope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid"
     
+    /// Placeholder used by @StateObject before the real modelContext is injected.
+    static let placeholder: EmailService = {
+        let schema = Schema([EmailAccount.self, EmailMessage.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [config])
+        return EmailService(modelContext: ModelContext(container))
+    }()
+    
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         super.init()
+    }
+    
+    /// Called by the view once the SwiftUI environment modelContext is available.
+    func setModelContext(_ context: ModelContext) {
+        self.modelContext = context
     }
     
     // MARK: - Auto Sync

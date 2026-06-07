@@ -4,8 +4,10 @@ Personal AI Journal Assistant with RAG
 """
 
 import logging
+import base64
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,7 +49,6 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    # Startup
     logger.info("Starting MindVault Backend...")
     
     # Initialize services
@@ -84,7 +85,9 @@ app.add_middleware(
 )
 
 
-# MARK: - Health Endpoints
+# ─────────────────────────────────────────
+# MARK: - Health
+# ─────────────────────────────────────────
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -100,14 +103,12 @@ async def health_check():
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {
-        "service": "MindVault API",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    return {"service": "MindVault API", "version": "1.0.0", "status": "running"}
 
 
-# MARK: - Embedding Endpoints
+# ─────────────────────────────────────────
+# MARK: - Embedding
+# ─────────────────────────────────────────
 
 @app.post("/api/embed", response_model=EmbedResponse)
 async def generate_embedding(request: EmbedRequest):
@@ -120,11 +121,13 @@ async def generate_embedding(request: EmbedRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# MARK: - Vector DB Endpoints
+# ─────────────────────────────────────────
+# MARK: - Upsert Endpoints
+# ─────────────────────────────────────────
 
 @app.post("/api/upsert")
 async def upsert_document(request: UpsertRequest):
-    """Add or update a document in the vector database."""
+    """Generic upsert - used for journal entries and profile items."""
     try:
         await rag_service.upsert_document(
             id=request.id,
@@ -140,13 +143,10 @@ async def upsert_document(request: UpsertRequest):
 @app.post("/api/upsert/email")
 async def upsert_email(request: EmailUpsertRequest):
     """
-    Add or update an email with improved processing.
-    
-    This endpoint:
-    1. Cleans the email (removes signatures, disclaimers, HTML noise)
-    2. Chunks long emails with context preservation
-    3. Creates rich metadata for hybrid search (names, dates, subjects)
-    4. Stores chunks in vector DB for optimal retrieval
+    Upsert an email with full processing pipeline:
+    1. Strip HTML / signatures / disclaimers
+    2. Thread-aware chunking with Subject+Date header on each chunk
+    3. Rich metadata for hybrid search
     """
     try:
         await rag_service.upsert_email(
@@ -164,6 +164,66 @@ async def upsert_email(request: EmailUpsertRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/upsert/document")
+async def upsert_drive_document(request: DocumentUpsertRequest):
+    """
+    Upsert a Google Drive document (PDF, DOCX, TXT) with full processing:
+    1. Decode base64 content
+    2. Extract text from PDF / DOCX / TXT
+    3. Chunk with filename + folder context header
+    4. Store in vector DB with rich metadata
+    """
+    try:
+        from app.services.document_processor import document_processor
+
+        # Decode base64 content
+        try:
+            file_bytes = base64.b64decode(request.content_base64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid base64 content")
+
+        # Process document into chunks
+        chunks = document_processor.process_document(
+            content=file_bytes,
+            filename=request.filename,
+            mime_type=request.mime_type,
+            metadata={
+                "file_id": request.file_id,
+                "filename": request.filename,
+                "folder_path": request.folder_path or "/",
+                "source": request.source,
+                "web_view_link": request.web_view_link or "",
+                "modified_time": request.modified_time.isoformat() if request.modified_time else "",
+                "type": "document",
+            }
+        )
+
+        if not chunks:
+            return {"status": "skipped", "id": request.file_id, "reason": "No text extracted"}
+
+        # Upsert each chunk
+        for i, chunk in enumerate(chunks):
+            chunk_id = f"{request.file_id}_chunk_{i}"
+            await rag_service.upsert_document(
+                id=chunk_id,
+                content=chunk["content"],
+                metadata=chunk["metadata"]
+            )
+
+        logger.info(f"Upserted document '{request.filename}' as {len(chunks)} chunks")
+        return {"status": "success", "id": request.file_id, "chunks": len(chunks)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Document upsert error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────
+# MARK: - Delete
+# ─────────────────────────────────────────
+
 @app.delete("/api/delete")
 async def delete_document(request: DeleteRequest):
     """Delete a document from the vector database."""
@@ -174,6 +234,10 @@ async def delete_document(request: DeleteRequest):
         logger.error(f"Delete error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ─────────────────────────────────────────
+# MARK: - Search
+# ─────────────────────────────────────────
 
 @app.post("/api/search", response_model=SearchResponse)
 async def search_documents(request: SearchRequest):
@@ -190,23 +254,41 @@ async def search_documents(request: SearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# MARK: - Chat Endpoints
+# ─────────────────────────────────────────
+# MARK: - Chat  (routed through Agent Orchestrator)
+# ─────────────────────────────────────────
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Generate a chat response using RAG."""
+    """
+    Chat endpoint - routes through the LangGraph agent orchestrator.
+    The orchestrator classifies intent and dispatches to the appropriate
+    specialist agent (Email, Drive, Journal) before synthesising a response.
+    """
     try:
-        response, contexts = await rag_service.process_query(
+        orchestrator = get_orchestrator()
+        response, contexts = await orchestrator.process(
             query=request.message,
             history=request.history
         )
         return ChatResponse(response=response, contexts=contexts)
     except Exception as e:
-        logger.error(f"Chat error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Chat error: {e}", exc_info=True)
+        # Graceful fallback to plain RAG
+        try:
+            response, contexts = await rag_service.process_query(
+                query=request.message,
+                history=request.history
+            )
+            return ChatResponse(response=response, contexts=contexts)
+        except Exception as fallback_error:
+            logger.error(f"Fallback chat error: {fallback_error}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 
-# MARK: - Admin Endpoints
+# ─────────────────────────────────────────
+# MARK: - Admin / Stats
+# ─────────────────────────────────────────
 
 @app.get("/api/stats")
 async def get_stats():

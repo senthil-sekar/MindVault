@@ -21,7 +21,7 @@ class EmailProcessingService: ObservableObject {
     
     // MARK: - Private Properties
     
-    private let modelContext: ModelContext
+    private var modelContext: ModelContext
     private let embeddingService: EmbeddingService
     private let vectorDBService: VectorDBService
     
@@ -35,10 +35,23 @@ class EmailProcessingService: ObservableObject {
     
     // MARK: - Initialization
     
+    /// Placeholder used by @StateObject before the real modelContext is injected.
+    static let placeholder: EmailProcessingService = {
+        let schema = Schema([EmailAccount.self, EmailMessage.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: schema, configurations: [config])
+        return EmailProcessingService(modelContext: ModelContext(container))
+    }()
+    
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         self.embeddingService = EmbeddingService.shared
         self.vectorDBService = VectorDBService.shared
+    }
+    
+    /// Called by the view once the SwiftUI environment modelContext is available.
+    func setModelContext(_ context: ModelContext) {
+        self.modelContext = context
     }
     
     // MARK: - Email Processing
