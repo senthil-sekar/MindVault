@@ -368,7 +368,8 @@ class VectorDBService:
         try:
             collection_info = self.client.get_collection(self.collection_name)
             return {
-                "name": collection_info.config.params.vectors.size,
+                "name": self.collection_name,
+                "vector_size": collection_info.config.params.vectors.size,
                 "vectors_count": collection_info.vectors_count,
                 "points_count": collection_info.points_count,
                 "status": collection_info.status
