@@ -2,7 +2,7 @@
 
 The Gmail integration ships in the app but needs one developer-side value: a Google OAuth **iOS
 client ID**. Without it every connect attempt fails, because `EmailService.isConfigured()` only
-returns true when `gmailClientId` looks like a real client ID.
+returns true once the ID is set. It lives in `Config.local.xcconfig`, not in source.
 
 If you just want to *use* an already-configured build, skip to [Using it](#using-it).
 
@@ -19,15 +19,20 @@ Detailed walkthrough with the scope list: [EMAIL_CONFIGURATION_GUIDE.md](EMAIL_C
 
 ## 2. Put it in the app
 
-`MindVault/Services/EmailService.swift`:
-
-```swift
-private let gmailClientId = "<NUMBER>-<HASH>.apps.googleusercontent.com"
-private let gmailRedirectURI = "com.mindvault.app:/oauth2redirect"
+```bash
+cp Config.local.xcconfig.example Config.local.xcconfig
 ```
 
-The redirect URI's scheme (`com.mindvault.app`) is already registered under `CFBundleURLTypes` in
-`MindVault/Info.plist`. Google Drive uses a separate reversed-client-ID scheme, also in that file.
+Set the prefix — the client ID minus the `.apps.googleusercontent.com` suffix:
+
+```
+GOOGLE_OAUTH_CLIENT_ID_PREFIX = <NUMBER>-<HASH>
+```
+
+That one value feeds the Info.plist `GoogleOAuthClientID` key (read by `Configuration.GoogleOAuth`)
+and the reversed-client-ID URL scheme Drive redirects to. `Config.local.xcconfig` is git-ignored, so
+the ID never gets committed. Gmail redirects to the bundle-ID scheme `com.mindvault.app` instead;
+both schemes are registered in `MindVault/Info.plist`.
 
 ## 3. Build and run
 

@@ -28,9 +28,9 @@ class EmailService: NSObject, ObservableObject {
     // Auto-sync interval (5 minutes)
     private let autoSyncInterval: TimeInterval = 5 * 60
     
-    // Gmail OAuth Configuration
-    private let gmailClientId = "139218014357-3viojsk9bvbrqo96lbesscifdj0itdlf.apps.googleusercontent.com"
-    private let gmailRedirectURI = "com.mindvault.app:/oauth2redirect"
+    // Gmail OAuth Configuration - see Config.local.xcconfig.example
+    private let gmailClientId = Configuration.GoogleOAuth.clientID
+    private let gmailRedirectURI = Configuration.GoogleOAuth.appRedirectURI
     private let gmailAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
     private let gmailTokenURL = "https://oauth2.googleapis.com/token"
     private let gmailScope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid"
@@ -213,7 +213,7 @@ class EmailService: NSObject, ObservableObject {
             
             let session = ASWebAuthenticationSession(
                 url: authURL,
-                callbackURLScheme: "com.mindvault.app"
+                callbackURLScheme: Configuration.GoogleOAuth.appURLScheme
             ) { callbackURL, error in
                 if let error = error {
                     continuation.resume(throwing: error)

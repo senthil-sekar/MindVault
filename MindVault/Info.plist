@@ -28,6 +28,8 @@
 	<string>MindVault needs access to your microphone to enable voice input for chat messages.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>MindVault needs access to speech recognition to convert your voice into text for chat messages.</string>
+	<key>GoogleOAuthClientID</key>
+	<string>$(GOOGLE_OAUTH_CLIENT_ID)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -44,10 +46,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.googleusercontent.apps.139218014357-3viojsk9bvbrqo96lbesscifdjitdlf</string>
+			<string>com.googleusercontent.apps.$(GOOGLE_OAUTH_CLIENT_ID_PREFIX)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.139218014357-3viojsk9bvbrqo96lbesscifdjitdlf</string>
+				<string>com.googleusercontent.apps.$(GOOGLE_OAUTH_CLIENT_ID_PREFIX)</string>
 			</array>
 		</dict>
 	</array>

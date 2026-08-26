@@ -1,0 +1,15 @@
+// Build settings shared by every configuration.
+//
+// Google OAuth iOS client ID, used for Gmail and Google Drive sign-in. Set it in
+// Config.local.xcconfig (git-ignored) rather than here, so the repo stays project-agnostic:
+//
+//   cp Config.local.xcconfig.example Config.local.xcconfig
+//
+// It is an identifier, not a secret: iOS OAuth clients have no client secret and authenticate
+// with PKCE. See docs/EMAIL_CONFIGURATION_GUIDE.md for how to create one.
+
+// Everything before ".apps.googleusercontent.com", e.g. 123456789-abcdef.
+GOOGLE_OAUTH_CLIENT_ID_PREFIX =
+GOOGLE_OAUTH_CLIENT_ID = $(GOOGLE_OAUTH_CLIENT_ID_PREFIX).apps.googleusercontent.com
+
+#include? "Config.local.xcconfig"
