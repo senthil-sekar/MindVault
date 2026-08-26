@@ -7,7 +7,6 @@ import uuid
 from typing import Optional, Any, List, Dict
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from qdrant_client.http.exceptions import UnexpectedResponse
 
 from app.config import get_settings
 
@@ -258,8 +257,7 @@ class VectorDBService:
             'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
             'what', 'when', 'where', 'who', 'how', 'why', 'which', 'this', 'that',
             'my', 'your', 'our', 'their', 'me', 'you', 'we', 'they', 'it', 'its',
-            'about', 'any', 'all', 'some', 'can', 'could', 'should', 'would',
-            'tell', 'show', 'find', 'get', 'give', 'list', 'summarize', 'recent',
+            'about', 'any', 'all', 'some', 'can', 'could', 'should', 'tell', 'show', 'find', 'get', 'give', 'list', 'summarize', 'recent',
             'latest', 'last', 'email', 'emails', 'message', 'messages'
         }
         

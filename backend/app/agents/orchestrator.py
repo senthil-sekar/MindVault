@@ -12,12 +12,12 @@ The graph:
 """
 
 import logging
-from typing import Optional, List, Dict, Any, Tuple, TypedDict, Annotated
+from typing import Optional, List, Dict, Tuple, TypedDict
 
 from langgraph.graph import StateGraph, END
 
 from app.agents.state import (
-    AgentType, QueryIntent, AgentResult, RetrievedContext
+    AgentType, QueryIntent
 )
 from app.agents.router import intent_router
 from app.agents.email_agent import email_agent

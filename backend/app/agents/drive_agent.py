@@ -78,7 +78,7 @@ When referencing information, mention WHICH document it comes from."""
         
         # Build overview
         overview_lines = ["=== DOCUMENT OVERVIEW ==="]
-        for i, (doc_id, chunks) in enumerate(doc_groups.items(), 1):
+        for i, (_doc_id, chunks) in enumerate(doc_groups.items(), 1):
             meta = chunks[0].get("metadata", {})
             filename = meta.get("filename", "Unknown")
             source = meta.get("source", "google_drive")
@@ -89,7 +89,7 @@ When referencing information, mention WHICH document it comes from."""
         
         # Get best chunks per document
         contexts = []
-        for doc_id, chunks in list(doc_groups.items())[:5]:
+        for _doc_id, chunks in list(doc_groups.items())[:5]:
             # Take top 2 chunks per document
             for chunk in chunks[:2]:
                 content = chunk.get("content", "")
@@ -147,7 +147,7 @@ When referencing information, mention WHICH document it comes from."""
         logger.info(f"Drive Agent: Found {len(doc_groups)} documents")
         
         contexts = []
-        for doc_id, chunks in list(doc_groups.items())[:5]:
+        for _doc_id, chunks in list(doc_groups.items())[:5]:
             for chunk in chunks[:2]:  # Top 2 chunks per doc
                 content = chunk.get("content", "")
                 meta = chunk.get("metadata", {})

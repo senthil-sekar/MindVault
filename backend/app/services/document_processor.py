@@ -6,7 +6,7 @@ Handles PDF, DOCX, and text document extraction and chunking for RAG
 import io
 import logging
 import re
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 import hashlib
 

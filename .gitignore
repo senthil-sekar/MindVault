@@ -69,3 +69,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+mcp-server/dist/

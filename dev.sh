@@ -46,7 +46,7 @@ case "${1:-help}" in
         # Setup backend
         cd backend
         print_info "Installing Python dependencies..."
-        pip3 install -r requirements.txt
+        pip3 install -r requirements-dev.txt
         print_success "Backend dependencies installed"
         cd ..
         
@@ -68,7 +68,13 @@ case "${1:-help}" in
     test)
         print_header "Testing Backend"
         cd backend
-        python3 test_backend.py
+        python3 -m pytest "${@:2}"
+        ;;
+
+    lint)
+        print_header "Linting Backend"
+        cd backend
+        python3 -m ruff check .
         ;;
         
     clean)
@@ -88,7 +94,8 @@ case "${1:-help}" in
         echo "Commands:"
         echo "  setup     - Install dependencies and setup project"
         echo "  start     - Start the backend server"
-        echo "  test      - Run backend tests"
+        echo "  test      - Run backend tests (pytest)"
+        echo "  lint      - Run ruff on the backend"
         echo "  clean     - Clean temporary files"
         echo "  help      - Show this help message"
         echo ""
