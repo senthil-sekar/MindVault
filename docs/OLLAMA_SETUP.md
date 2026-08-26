@@ -247,16 +247,9 @@ ollama run llama3.2:3b "test"
 
 ## Alternative: OpenAI API
 
-If you prefer cloud-based LLM, you can still use OpenAI:
-
-```bash
-# In backend/.env
-OPENAI_API_KEY=your_key_here
-LLM_PROVIDER=openai
-LLM_MODEL=gpt-4
-```
-
-Then update `backend/app/services/llm.py` to use OpenAI client.
+Not supported. `backend/app/services/llm.py` talks to Ollama's `/api/generate` only; there is no
+OpenAI code path and no `LLM_PROVIDER` setting. Using a cloud model would mean implementing a new
+client in that service.
 
 ---
 
