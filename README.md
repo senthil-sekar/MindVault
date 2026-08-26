@@ -11,9 +11,6 @@ A personal AI-powered journal assistant that remembers everything about you. Wri
 - 📧 **Email Integration**: Connect Gmail and convert emails to journal entries (configurable in-app)
 - 🔍 **RAG-Powered**: Uses Retrieval-Augmented Generation for accurate, contextual responses
 - 🔒 **Privacy-Focused**: Your data stays on your infrastructure
-- 🦙 **Ollama Support**: Run AI models 100% locally - no API keys needed!journal entries (configurable in-app)
-- 🔍 **RAG-Powered**: Uses Retrieval-Augmented Generation for accurate, contextual responses
-- 🔒 **Privacy-Focused**: Your data stays on your infrastructure
 - 🦙 **Ollama Support**: Run AI models 100% locally - no API keys needed!
 
 ## Architecture
@@ -92,13 +89,11 @@ graph TB
     
     subgraph External["External Services"]
         Ollama["🦙 Ollama<br/>• Local LLM<br/>• llama3.2:3b<br/>• Free & Private"]
-        OpenAI["☁️ OpenAI API<br/>• GPT-4<br/>• text-embedding<br/>• Cloud Option"]
         Qdrant["🔍 Qdrant Vector DB<br/>• 384 dimensions<br/>• Cosine similarity<br/>• Metadata filtering"]
         Gmail["📧 Gmail API<br/>• OAuth 2.0<br/>• Email Sync<br/>• Auto-process"]
     end
     
-    LLMSvc -.->|"Default"| Ollama
-    LLMSvc -.->|"Optional"| OpenAI
+    LLMSvc --> Ollama
     EmbedSvc --> Qdrant
     VectorSvc --> Qdrant
     EmailService -.->|"OAuth"| Gmail
@@ -107,7 +102,6 @@ graph TB
     style Backend fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
     style External fill:#fff3e0,stroke:#e65100,stroke-width:3px
     style Ollama fill:#90ee90,stroke:#006400,stroke-width:2px
-    style OpenAI fill:#add8e6,stroke:#00008b,stroke-width:2px
     style Qdrant fill:#ffd700,stroke:#ff8c00,stroke-width:2px
     style Gmail fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px
 ```
@@ -121,7 +115,7 @@ sequenceDiagram
     participant API as FastAPI
     participant Embed as Embedding Service
     participant VectorDB as Qdrant
-    participant LLM as Ollama/OpenAI
+    participant LLM as Ollama
     
     Note over User,LLM: 1. Indexing Flow
     User->>iOS: Write Journal Entry
@@ -207,13 +201,12 @@ flowchart LR
 - **iOS Development**: Xcode 15+, iOS 17+
 - **Backend**: 
   - Python 3.9+
-  - **Ollama** (for local LLM) ⭐ **RECOMMENDED** - 100% free, runs locally
-  - OR OpenAI API key (for cloud LLM)
+  - **Ollama** (local LLM) - 100% free, runs locally
   - Qdrant (vector database) - runs via Docker
 
 ## Quick Start
 
-### 0. Setup Ollama (Optional but Recommended - 100% Free)
+### 0. Setup Ollama (Required - 100% Free)
 
 ```bash
 # Install Ollama
@@ -226,7 +219,7 @@ ollama serve
 ollama pull llama3.2:3b  # Fast & good quality
 ```
 
-💡 **Tip:** With Ollama, you don't need OpenAI API key! Skip the .env configuration below.
+💡 **Tip:** Everything runs locally — no API keys anywhere in the stack.
 
 ### 1. Start the Backend
 
@@ -237,12 +230,7 @@ cd MindVault
 # Copy environment file
 cp backend/.env.example backend/.env
 
-# If using Ollama (default):
-# - No changes needed! It's already configured for Ollama
-
-# If using OpenAI instead:
-# - Edit backend/.env and add: OPENAI_API_KEY=your-key-here
-# - Change LLM_MODEL to: gpt-4-turbo-preview
+# The defaults already point at local Qdrant and Ollama — no changes needed
 
 # Start services with Docker
 docker-compose up -d
@@ -294,7 +282,7 @@ MindVault/
 │   │   ├── config.py            # Configuration
 │   │   ├── models.py            # Pydantic models
 │   │   └── services/
-│   │       ├── embedding.py     # OpenAI embeddings
+│   │       ├── embedding.py     # Local sentence-transformers embeddings
 │   │       ├── vector_db.py     # Qdrant operations
 │   │       ├── llm.py           # Chat completion
 │   │       └── rag.py           # RAG orchestration
@@ -334,21 +322,33 @@ Navigate to Profile → Settings in the app to configure:
 To enable Gmail integration, configure the Client ID in `EmailService.swift`:
 1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
 2. Create project → Enable Gmail API → Create OAuth Client ID (iOS)
-3. Copy the Client ID and paste it in `EmailService.swift` line 23
+3. Copy the Client ID and paste it into `gmailClientId` in `EmailService.swift`
 4. Users can then connect their Gmail accounts seamlessly
 
 ### Backend Environment Variables
 
+See [`backend/.env.example`](backend/.env.example) for a copy-paste starting point.
+
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `USE_OLLAMA` | Use local Ollama instead of OpenAI | `true` |
-| `OLLAMA_BASE_URL` | Ollama API endpoint | `http://localhost:11434` |
-| `OLLAMA_MODEL` | Ollama model to use | `llama3.2:3b` |
-| `OPENAI_API_KEY` | OpenAI API key (if not using Ollama) | Optional |
 | `QDRANT_HOST` | Qdrant host | `localhost` |
 | `QDRANT_PORT` | Qdrant port | `6333` |
-| `EMBEDDING_MODEL` | OpenAI embedding model | `text-embedding-3-small` |
-| `LLM_MODEL` | OpenAI chat model (if not using Ollama) | `gpt-4-turbo-preview` |
+| `QDRANT_COLLECTION` | Qdrant collection name | `mindvault` |
+| `QDRANT_URL` | Qdrant Cloud URL (optional) | Unset |
+| `QDRANT_API_KEY` | Qdrant Cloud API key (optional) | Unset |
+| `HOST` | Bind address | `0.0.0.0` |
+| `PORT` | Bind port | `8000` |
+| `DEBUG` | Enable uvicorn reload | `true` |
+| `EMBEDDING_MODEL` | Local sentence-transformers model | `all-MiniLM-L6-v2` |
+| `EMBEDDING_DIMENSION` | Embedding size (must match the model) | `384` |
+| `OLLAMA_URL` | Ollama API endpoint | `http://localhost:11434` |
+| `LLM_MODEL` | Ollama model to use | `llama3.2` |
+| `LLM_MAX_TOKENS` | Max tokens per response | `2000` |
+| `LLM_TEMPERATURE` | Sampling temperature | `0.7` |
+| `RAG_TOP_K` | Documents retrieved per query | `5` |
+| `RAG_MIN_SCORE` | Minimum similarity score | `0.1` |
+
+> The backend is Ollama-only — there is no OpenAI code path, so no API key is needed or read.
 
 💡 **See `OLLAMA_SETUP.md` for complete Ollama setup and model selection guide**
 
@@ -394,9 +394,6 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Set environment variables
-export OPENAI_API_KEY=your-key-here
-
 # Run Qdrant separately
 docker run -p 6333:6333 qdrant/qdrant
 
@@ -418,7 +415,7 @@ xcodebuild test -project MindVault.xcodeproj -scheme MindVault
 ## Privacy & Security
 
 - All data is stored locally on your device and your self-hosted backend
-- Journal entries are never sent to third parties (except OpenAI for embeddings/chat if using OpenAI)
+- Journal entries are never sent to third parties — embeddings and chat both run locally
 - You control your Qdrant instance and all stored embeddings
 - API keys are stored securely in iOS Keychain and never logged
 - Email OAuth tokens are hardware-encrypted in Keychain

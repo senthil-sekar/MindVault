@@ -69,3 +69,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Local env files
+.env
+!.env.example
