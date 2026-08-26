@@ -4,10 +4,13 @@ Handles PDF, DOCX, and text document extraction and chunking for RAG
 """
 
 import io
+import logging
 import re
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 import hashlib
+
+logger = logging.getLogger(__name__)
 
 # PDF processing
 try:
@@ -123,7 +126,7 @@ class DocumentProcessor:
                 if text_parts:
                     return "\n\n".join(text_parts)
             except Exception as e:
-                print(f"pdfplumber failed: {e}")
+                logger.warning(f"pdfplumber failed: {e}")
         
         # Fallback to PyPDF2
         if HAS_PYPDF2:
@@ -135,7 +138,7 @@ class DocumentProcessor:
                         text_parts.append(page_text)
                 return "\n\n".join(text_parts)
             except Exception as e:
-                print(f"PyPDF2 failed: {e}")
+                logger.warning(f"PyPDF2 failed: {e}")
         
         raise RuntimeError("No PDF library available. Install pdfplumber or PyPDF2.")
     
