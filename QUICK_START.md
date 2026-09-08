@@ -4,8 +4,12 @@ Common commands and fixes. For the full picture see [README.md](README.md).
 
 ## First run
 
+This sets up **AI Backend** mode. Only want **On-Device** (no Mac, no server)? Skip to
+[On-Device mode](README.md#on-device-mode) in the README instead — none of this applies.
+Only want **OpenAI (BYOK)**? Skip step 1 (no Ollama needed), still do 2–3.
+
 ```bash
-# 1. Local LLM
+# 1. Local LLM (Backend mode only)
 brew install ollama
 ollama serve                 # leave running
 ollama pull llama3.2         # must match LLM_MODEL in backend/.env

@@ -283,7 +283,13 @@ flowchart LR
 
 ## Quick Start
 
-### 0. Setup Ollama (Required - 100% Free)
+The steps below set up **AI Backend** mode (Ollama + a local server), the default. If you only
+want **On-Device** mode — no Mac, no server, ever — skip straight to its
+[one-time Xcode setup](#on-device-mode) instead; none of steps 0–2 apply. If you only want
+**OpenAI (BYOK)**, skip step 0 (no Ollama needed) but still do steps 1–2 (the backend handles
+retrieval for that mode too).
+
+### 0. Setup Ollama (Backend mode only)
 
 ```bash
 # Install Ollama
@@ -296,7 +302,7 @@ ollama serve
 ollama pull llama3.2:3b  # Fast & good quality
 ```
 
-💡 **Tip:** Everything runs locally — no API keys anywhere in the stack.
+💡 **Tip:** In Backend mode, everything runs locally — no API keys anywhere in the stack.
 
 ### 1. Start the Backend
 
