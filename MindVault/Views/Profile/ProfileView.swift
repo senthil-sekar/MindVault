@@ -457,19 +457,21 @@ struct SettingsView: View {
 
                 if llmMode == .localLLM {
                     Section("Local Model (MLX)") {
-                        let models = LocalModel.downloaded
-                        if models.isEmpty {
-                            Text("No models found. Copy an MLX model folder (e.g. mlx-community/Llama-3.2-1B-Instruct-4bit) to the app's Documents directory via Files.app.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Picker("Model", selection: $localModelPath) {
-                                ForEach(models) { model in
-                                    Text("\(model.name)  (\(model.sizeString))").tag(model.url.path)
+                        NavigationLink(destination: ModelBrowserView()) {
+                            HStack {
+                                Label("Browse Models", systemImage: "cpu.fill")
+                                Spacer()
+                                if localModelPath.isEmpty {
+                                    Text("None selected")
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text(URL(fileURLWithPath: localModelPath).lastPathComponent)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
                                 }
                             }
                         }
-                        Text("Requires iPhone 15 Pro or later (A17 Pro+) and the MLX-Swift package linked in Xcode.")
+                        Text("Download a model to your device and run it fully offline. Requires iPhone 15 Pro or newer (A17 Pro+) and the MLX-Swift package in Xcode.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
