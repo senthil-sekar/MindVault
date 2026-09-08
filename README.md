@@ -47,15 +47,21 @@ all verified to fit an iPhone 16 Plus (A18, 8 GB RAM):
 | Gemma 3 4B | ~2.5 GB | Balanced |
 | Mistral 7B | ~4.1 GB | Quality |
 
-**One-time Xcode setup to enable on-device generation:**
+**One-time Xcode setup to enable on-device generation** — two packages, both via
+**File → Add Package Dependencies…**:
 
-1. **File → Add Package Dependencies…**
-2. Enter `https://github.com/ml-explore/mlx-swift-lm` (Up to Next Major, from `3.31.3`)
-3. Add the **MLXLLM** and **MLXLMCommon** products to the MindVault target
+1. `https://github.com/ml-explore/mlx-swift-lm` (Up to Next Major, from `3.31.3`)
+   → add **MLXLLM**, **MLXLMCommon**, and **MLXHuggingFace** to the MindVault target
+2. `https://github.com/huggingface/swift-transformers` (Up to Next Major, from `1.3.4`)
+   → add **Tokenizers** to the MindVault target
 
-Requires **Xcode 26+** (the package is swift-tools-version 6.2) and iOS 17+. An A17 Pro
-or newer device is recommended — inference runs on the GPU via Metal. Until the package
-is linked, the app builds and runs normally and On-Device mode reports that generation
+The second package is easy to miss: mlx-swift-lm's tokenizer loader expands to code
+that calls into `swift-transformers` directly, but mlx-swift-lm doesn't declare it as
+a package dependency — Xcode won't pull it in for you.
+
+Requires **Xcode 26+** (mlx-swift-lm is swift-tools-version 6.2) and iOS 17+. An A17 Pro
+or newer device is recommended — inference runs on the GPU via Metal. Until both packages
+are linked, the app builds and runs normally and On-Device mode reports that generation
 isn't available yet; retrieval and embedding already work without it.
 
 > Google Drive documents: On-Device mode indexes PDFs, Google Docs, and text files

@@ -134,13 +134,25 @@ struct OpenAIDirectProvider: LLMProvider {
 
 // MARK: - Local LLM Provider  (MLX Swift — on-device inference)
 //
-// To activate on-device inference (one-time Xcode step):
-//   1. File → Add Package Dependencies…
-//        https://github.com/ml-explore/mlx-swift-lm      (Up to Next Major, 3.31.3)
-//   2. Add the "MLXLLM" and "MLXLMCommon" library products to the MindVault target.
-//   3. The #if canImport(MLXLMCommon) block below activates automatically.
+// To activate on-device inference (one-time Xcode step), add TWO package
+// dependencies — File → Add Package Dependencies… for each:
 //
-// Requires Xcode 26+ (the package is swift-tools-version 6.2) and iOS 17+.
+//   1. https://github.com/ml-explore/mlx-swift-lm        (Up to Next Major, from 3.31.3)
+//      → add the "MLXLLM", "MLXLMCommon", and "MLXHuggingFace" library products.
+//
+//   2. https://github.com/huggingface/swift-transformers  (Up to Next Major, from 1.3.4)
+//      → add the "Tokenizers" library product.
+//
+// The second package is easy to miss: mlx-swift-lm's tokenizer loader
+// (#huggingFaceTokenizerLoader(), from MLXHuggingFace) expands to code that
+// calls Tokenizers.AutoTokenizer directly, so swift-transformers has to be
+// linked too even though nothing here imports it explicitly by name in the
+// package graph — mlx-swift-lm does not declare it as a dependency.
+//
+// Once both are added, the #if canImport(MLXLMCommon) block below activates
+// automatically — nothing else to change.
+//
+// Requires Xcode 26+ (mlx-swift-lm is swift-tools-version 6.2) and iOS 17+.
 // Inference runs on the GPU via Metal, so an A17 Pro or newer device is
 // recommended; older devices will run but slowly.
 //
@@ -149,6 +161,8 @@ struct OpenAIDirectProvider: LLMProvider {
 #if canImport(MLXLMCommon)
 import MLXLLM
 import MLXLMCommon
+import MLXHuggingFace
+import Tokenizers
 
 /// Keeps one model resident between messages — weights are multi-gigabyte,
 /// so reloading per request would make chat unusable.
@@ -162,7 +176,7 @@ actor MLXModelCache {
         if let loaded, loadedPath == path { return loaded }
         let fresh = try await loadModelContainer(
             from: URL(fileURLWithPath: path),
-            using: TokenizersLoader()
+            using: #huggingFaceTokenizerLoader()
         )
         loaded = fresh
         loadedPath = path
@@ -262,7 +276,7 @@ enum LLMError: LocalizedError {
         case .modelFilesMissing:
             return "The selected model's files are missing or incomplete. Re-download it in Settings → AI Mode → Browse Models."
         case .mlxPackageNotInstalled:
-            return "On-device inference isn't linked yet. Add the mlx-swift-lm package (MLXLLM + MLXLMCommon) in Xcode → Add Package Dependencies."
+            return "On-device inference isn't linked yet. In Xcode → Add Package Dependencies, add mlx-swift-lm (MLXLLM, MLXLMCommon, MLXHuggingFace) and swift-transformers (Tokenizers)."
         }
     }
 }

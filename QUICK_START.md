@@ -87,11 +87,16 @@ Ollama via `http://host.docker.internal:11434`.
 
 ### On-Device mode
 
-**"On-device inference isn't linked yet."** The MLX package isn't in the project. In Xcode:
-**File → Add Package Dependencies…** → `https://github.com/ml-explore/mlx-swift-lm`
-(Up to Next Major, from `3.31.3`) → add **MLXLLM** and **MLXLMCommon** to the MindVault
-target. Needs Xcode 26+ (the package is swift-tools-version 6.2). Retrieval and embedding
-work without it; only generation is blocked.
+**"On-device inference isn't linked yet."** Two packages are missing — both via Xcode's
+**File → Add Package Dependencies…**:
+1. `https://github.com/ml-explore/mlx-swift-lm` (Up to Next Major, from `3.31.3`) →
+   add **MLXLLM**, **MLXLMCommon**, **MLXHuggingFace**
+2. `https://github.com/huggingface/swift-transformers` (Up to Next Major, from `1.3.4`) →
+   add **Tokenizers**
+
+Both are required — mlx-swift-lm's tokenizer loader needs `swift-transformers` but
+doesn't pull it in automatically. Needs Xcode 26+ (mlx-swift-lm is swift-tools-version
+6.2). Retrieval and embedding work without either package; only generation is blocked.
 
 **"No local model selected."** Download one in **Settings → AI Mode → Browse Models**.
 Start with Llama 3.2 3B (~1.8 GB) — the best speed/quality balance on an iPhone 16 Plus.
