@@ -351,7 +351,7 @@ class EmailService: NSObject, ObservableObject {
             let content = """
             From: \(emailMessage.from)
             Subject: \(emailMessage.subject)
-            Date: \(DateFormatter().string(from: emailMessage.date))
+            Date: \(emailMessage.date.formatted(date: .abbreviated, time: .shortened))
             
             \(emailMessage.body)
             """
@@ -708,7 +708,7 @@ class EmailService: NSObject, ObservableObject {
                     let content = """
                     From: \(emailMessage.from)
                     Subject: \(emailMessage.subject)
-                    Date: \(DateFormatter().string(from: emailMessage.date))
+                    Date: \(emailMessage.date.formatted(date: .abbreviated, time: .shortened))
                     
                     \(emailMessage.body)
                     """

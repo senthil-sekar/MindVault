@@ -37,9 +37,13 @@ struct ModelBrowserView: View {
                             onDownload:  { downloadManager.startDownload(for: model) },
                             onCancel:    { downloadManager.cancelDownload(for: model) },
                             onSelect: {
-                                localModelPath = model.localDirectory.path
-                                // Drop the previously resident model's weights.
-                                Task { await LocalModelRuntime.unloadModel() }
+                                // Unload the previous model *before* switching, so an
+                                // in-flight request can't load the new one and have it
+                                // evicted out from under it.
+                                Task {
+                                    await LocalModelRuntime.unloadModel()
+                                    localModelPath = model.localDirectory.path
+                                }
                             },
                             onDelete:    { modelToDelete = model }
                         )

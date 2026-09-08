@@ -383,7 +383,7 @@ struct EmailListView: View {
                 // Delete from vector DB if processed
                 if email.isProcessedForAI {
                     do {
-                        try await APIClient.shared.delete(id: email.id.uuidString)
+                        try await VectorDBService.shared.delete(id: email.id.uuidString)
                         print("✅ Deleted from vector DB: \(email.subject)")
                     } catch {
                         print("⚠️ Failed to delete from vector DB: \(error.localizedDescription)")
@@ -415,7 +415,7 @@ struct EmailListView: View {
             let accountEmails = messages.filter { $0.account?.id == account.id }
             for email in accountEmails {
                 if email.isProcessedForAI {
-                    try? await APIClient.shared.delete(id: email.id.uuidString)
+                    try? await VectorDBService.shared.delete(id: email.id.uuidString)
                 }
                 modelContext.delete(email)
             }

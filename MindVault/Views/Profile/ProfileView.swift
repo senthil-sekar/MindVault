@@ -193,6 +193,8 @@ struct ProfileView: View {
     }
     
     private func deleteItem(_ item: ProfileItem) {
+        // Drop the embedding first, or the assistant keeps citing deleted items.
+        Task { await RAGService.shared.deleteProfileItem(item) }
         modelContext.delete(item)
     }
 }
@@ -687,6 +689,11 @@ struct EmailAccountRow: View {
 }
 
 #Preview {
+    // SettingsView @Query-s JournalEntry and EmailAccount too — opening Settings
+    // from the preview traps if the container doesn't know those types.
     ProfileView()
-        .modelContainer(for: [ProfileItem.self], inMemory: true)
+        .modelContainer(
+            for: [ProfileItem.self, JournalEntry.self, EmailAccount.self],
+            inMemory: true
+        )
 }

@@ -211,10 +211,8 @@ class RAGService: ObservableObject {
         for entry in unsyncedEntries {
             current += 1
             processingStatus = "Syncing \(current)/\(total)…"
-            let before = entry.isEmbedded
             await embedJournalEntry(entry)
             entry.isEmbedded ? (successCount += 1) : (failedCount += 1)
-            _ = before  // suppress warning
         }
 
         for item in unsyncedItems {

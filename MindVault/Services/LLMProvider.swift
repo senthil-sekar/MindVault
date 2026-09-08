@@ -230,45 +230,6 @@ struct LocalLLMProvider: LLMProvider {
     }
 }
 
-// MARK: - Local Model Descriptor
-
-/// Represents an MLX model folder in the app's Documents directory.
-/// An MLX model is a folder containing config.json + *.safetensors weight files.
-struct LocalModel: Identifiable {
-    let url: URL
-    var id: String   { url.lastPathComponent }
-    var name: String { url.lastPathComponent }
-    var sizeString: String {
-        guard let enumerator = FileManager.default.enumerator(
-            at: url, includingPropertiesForKeys: [.fileSizeKey], options: .skipsHiddenFiles
-        ) else { return "?" }
-        var totalBytes = 0
-        for case let fileURL as URL in enumerator {
-            totalBytes += (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        }
-        let gb = Double(totalBytes) / 1_073_741_824
-        return gb >= 1 ? String(format: "%.1f GB", gb) : String(format: "%d MB", totalBytes / 1_048_576)
-    }
-
-    /// Scans Documents for subdirectories that look like MLX model folders
-    /// (contain config.json and at least one .safetensors file).
-    static var downloaded: [LocalModel] {
-        let fm = FileManager.default
-        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let dirs = (try? fm.contentsOfDirectory(
-            at: docs, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles
-        )) ?? []
-        return dirs.filter { url in
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { return false }
-            let hasConfig = fm.fileExists(atPath: url.appendingPathComponent("config.json").path)
-            let hasSafetensors = ((try? fm.contentsOfDirectory(atPath: url.path)) ?? [])
-                .contains { $0.hasSuffix(".safetensors") }
-            return hasConfig && hasSafetensors
-        }.map { LocalModel(url: $0) }
-    }
-}
-
 // MARK: - LLM Errors
 
 enum LLMError: LocalizedError {

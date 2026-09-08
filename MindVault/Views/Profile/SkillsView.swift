@@ -598,6 +598,8 @@ struct ProfileItemDetailView: View {
     }
     
     private func deleteItem() {
+        // Drop the embedding first, or the assistant keeps citing deleted items.
+        Task { await RAGService.shared.deleteProfileItem(item) }
         modelContext.delete(item)
         dismiss()
     }

@@ -155,6 +155,48 @@ enum ModelCatalog {
 
 // MARK: - Download Manager
 
+// File-scope so the nonisolated download code can reach them without hopping
+// to the main actor (static members of a @MainActor type are actor-isolated).
+
+private let keepExtensions: Set<String> = ["json", "safetensors", "model", "tiktoken"]
+
+private struct HFSibling: Decodable {
+    let rfilename: String
+    let size: Int64?
+}
+
+private struct HFModelInfo: Decodable {
+    let siblings: [HFSibling]
+}
+
+/// Reports byte-level progress for a single file download. URLSession streams
+/// straight to disk, so there's no per-byte work on our side.
+private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let onWrite: @Sendable (Int64, Int64) -> Void
+
+    init(onWrite: @escaping @Sendable (Int64, Int64) -> Void) {
+        self.onWrite = onWrite
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        onWrite(totalBytesWritten, totalBytesExpectedToWrite)
+    }
+
+    // The async download(from:delegate:) API takes ownership of the temp file,
+    // so there's nothing to do here — but the protocol requires it.
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {}
+}
+
 @MainActor
 final class ModelDownloadManager: ObservableObject {
     static let shared = ModelDownloadManager()
@@ -185,19 +227,22 @@ final class ModelDownloadManager: ObservableObject {
     @Published var activeDownloads: [String: DownloadProgress] = [:]
     @Published var downloadErrors:  [String: String]           = [:]
 
+    /// Live download tasks, kept so cancellation actually cancels.
+    private var tasks: [String: Task<Void, Never>] = [:]
+
     private init() {}
 
     // MARK: - Public
 
     func startDownload(for model: CatalogModel) {
-        guard activeDownloads[model.id] == nil else { return }
+        guard tasks[model.id] == nil else { return }
         activeDownloads[model.id] = DownloadProgress()
         downloadErrors.removeValue(forKey: model.id)
 
         let modelID = model.id
-        Task.detached(priority: .utility) { [weak self] in
+        tasks[modelID] = Task.detached(priority: .utility) { [weak self] in
             do {
-                try await Self.performDownload(model: model) { progress in
+                try await downloadModel(model) { progress in
                     await self?.applyProgress(id: modelID, progress: progress)
                 }
                 await self?.finalize(id: modelID, error: nil)
@@ -210,10 +255,13 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func cancelDownload(for model: CatalogModel) {
+        tasks[model.id]?.cancel()
+        tasks.removeValue(forKey: model.id)
         activeDownloads.removeValue(forKey: model.id)
     }
 
     func uninstall(_ model: CatalogModel) throws {
+        cancelDownload(for: model)
         try FileManager.default.removeItem(at: model.localDirectory)
     }
 
@@ -226,130 +274,103 @@ final class ModelDownloadManager: ObservableObject {
 
     private func finalize(id: String, error: Error?) {
         activeDownloads.removeValue(forKey: id)
+        tasks.removeValue(forKey: id)
         if let error { downloadErrors[id] = error.localizedDescription }
     }
+}
 
-    // MARK: - Static Download Logic  (runs off main actor)
+// MARK: - Download implementation (nonisolated — never touches the main actor)
 
-    private struct HFSibling: Decodable {
-        let rfilename: String
-        let size: Int64?
+/// Downloads every weight/config file for `model` into its Documents folder.
+/// Resumable: files already present at their expected size are skipped.
+private func downloadModel(
+    _ model: CatalogModel,
+    onProgress: @escaping @Sendable (ModelDownloadManager.DownloadProgress) async -> Void
+) async throws {
+    // 1. File list (blobs=true gives per-file sizes)
+    let (listData, _) = try await URLSession.shared.data(from: model.hfAPIURL)
+    let info = try JSONDecoder().decode(HFModelInfo.self, from: listData)
+
+    let files = info.siblings.filter { s in
+        let ext = URL(fileURLWithPath: s.rfilename).pathExtension.lowercased()
+        return keepExtensions.contains(ext) && !s.rfilename.lowercased().contains("readme")
     }
-    private struct HFModelInfo: Decodable {
-        let siblings: [HFSibling]
-    }
+    guard !files.isEmpty else { throw URLError(.cannotParseResponse) }
 
-    private static let keepExtensions: Set<String> = [
-        "json", "safetensors", "model", "tiktoken"
-    ]
+    let totalBytes = files.compactMap(\.size).reduce(0, +)
+    let fileCount = files.count
 
-    static func performDownload(
-        model: CatalogModel,
-        onProgress: @Sendable (DownloadProgress) async -> Void
-    ) async throws {
-        // 1. Fetch file list (blobs=true adds per-file sizes)
-        let (listData, _) = try await URLSession.shared.data(from: model.hfAPIURL)
-        let info = try JSONDecoder().decode(HFModelInfo.self, from: listData)
+    let fm = FileManager.default
+    try fm.createDirectory(at: model.localDirectory, withIntermediateDirectories: true)
 
-        let files = info.siblings.filter { s in
-            let ext = URL(fileURLWithPath: s.rfilename).pathExtension.lowercased()
-            return keepExtensions.contains(ext) && !s.rfilename.lowercased().contains("readme")
-        }
-        guard !files.isEmpty else { throw URLError(.cannotParseResponse) }
+    await onProgress(.init(totalFiles: fileCount, totalBytes: totalBytes))
 
-        let totalBytes: Int64 = files.compactMap(\.size).reduce(0, +)
+    // Bytes from files already finished. Only mutated between files, never
+    // from inside the progress closure.
+    var completedBytes: Int64 = 0
 
-        // 2. Destination directory
-        let fm = FileManager.default
-        try fm.createDirectory(at: model.localDirectory, withIntermediateDirectories: true)
+    for (index, sibling) in files.enumerated() {
+        try Task.checkCancellation()
 
-        await onProgress(DownloadProgress(totalFiles: files.count, totalBytes: totalBytes))
+        let fileIndex = index + 1
+        let fileName = URL(fileURLWithPath: sibling.rfilename).lastPathComponent
+        let base = completedBytes
 
-        // Bytes from files already finished. Only mutated between files — never
-        // from inside the progress closure, which would be a data race.
-        var completedBytes: Int64 = 0
+        await onProgress(.init(
+            fileIndex: fileIndex, totalFiles: fileCount,
+            bytesDownloaded: base, totalBytes: totalBytes, currentFileName: fileName
+        ))
 
-        // 3. Download each file
-        for (index, sibling) in files.enumerated() {
-            try Task.checkCancellation()
+        // Preserve any subdirectory structure inside the model folder
+        let relDir = URL(fileURLWithPath: sibling.rfilename).deletingLastPathComponent().relativePath
+        let dstDir = relDir == "."
+            ? model.localDirectory
+            : model.localDirectory.appendingPathComponent(relDir, isDirectory: true)
+        try fm.createDirectory(at: dstDir, withIntermediateDirectories: true)
+        let dst = model.localDirectory.appendingPathComponent(sibling.rfilename)
 
-            let fileIndex = index + 1
-            let fileName = URL(fileURLWithPath: sibling.rfilename).lastPathComponent
-            let base = completedBytes          // immutable snapshot for this file
-            let fileCount = files.count
-
-            await onProgress(DownloadProgress(
-                fileIndex: fileIndex, totalFiles: fileCount,
-                bytesDownloaded: base, totalBytes: totalBytes,
-                currentFileName: fileName
-            ))
-
-            // Preserve any subdirectory structure inside the model folder
-            let relDir = URL(fileURLWithPath: sibling.rfilename)
-                .deletingLastPathComponent().relativePath
-            let dstDir = relDir == "."
-                ? model.localDirectory
-                : model.localDirectory.appendingPathComponent(relDir, isDirectory: true)
-            try fm.createDirectory(at: dstDir, withIntermediateDirectories: true)
-            let dst = model.localDirectory.appendingPathComponent(sibling.rfilename)
-
-            if fm.fileExists(atPath: dst.path) {
-                let existing = (try? dst.resourceValues(forKeys: [.fileSizeKey]).fileSize)
-                    .flatMap { Int64($0) } ?? sibling.size ?? 0
-                completedBytes += existing
-                await onProgress(DownloadProgress(
+        // Resume: only skip a file whose size matches what the Hub reports.
+        // A truncated file from an interrupted run must be re-fetched, or the
+        // model loads as corrupt much later with a confusing error.
+        if let onDisk = (try? dst.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) {
+            if let expected = sibling.size, onDisk == expected {
+                completedBytes += onDisk
+                await onProgress(.init(
                     fileIndex: fileIndex, totalFiles: fileCount,
                     bytesDownloaded: completedBytes, totalBytes: totalBytes,
                     currentFileName: fileName
                 ))
                 continue
             }
+            try? fm.removeItem(at: dst)   // truncated or unknown size — refetch
+        }
 
-            // The closure captures only immutable values, so there's nothing to race on.
-            let written = try await streamToFile(
-                from: model.resolveURL(for: sibling.rfilename),
-                to: dst
-            ) { bytesThisFile in
-                await onProgress(DownloadProgress(
+        // The delegate closure captures only immutable values.
+        let delegate = DownloadProgressDelegate { written, _ in
+            Task {
+                await onProgress(.init(
                     fileIndex: fileIndex, totalFiles: fileCount,
-                    bytesDownloaded: base + bytesThisFile, totalBytes: totalBytes,
+                    bytesDownloaded: base + written, totalBytes: totalBytes,
                     currentFileName: fileName
                 ))
             }
-            completedBytes += written
         }
-    }
 
-    /// Streams `url` to `destination`, reporting bytes written *for this file*.
-    /// Returns the total written.
-    private static func streamToFile(
-        from url: URL,
-        to destination: URL,
-        onFileProgress: @Sendable (Int64) async -> Void
-    ) async throws -> Int64 {
-        let (asyncBytes, _) = try await URLSession.shared.bytes(from: url)
+        let (tempURL, response) = try await URLSession.shared.download(
+            from: model.resolveURL(for: sibling.rfilename),
+            delegate: delegate
+        )
 
-        FileManager.default.createFile(atPath: destination.path, contents: nil)
-        let handle = try FileHandle(forWritingTo: destination)
-        defer { try? handle.close() }
-
-        var written: Int64 = 0
-        var chunk = Data(capacity: 512 * 1024)
-
-        for try await byte in asyncBytes {
-            chunk.append(byte)
-            if chunk.count >= 512 * 1024 {
-                try handle.write(contentsOf: chunk)
-                written += Int64(chunk.count)
-                chunk.removeAll(keepingCapacity: true)
-                await onFileProgress(written)
-            }
+        if let http = response as? HTTPURLResponse, !(200 ..< 300).contains(http.statusCode) {
+            try? fm.removeItem(at: tempURL)
+            throw URLError(.badServerResponse)
         }
-        if !chunk.isEmpty {
-            try handle.write(contentsOf: chunk)
-            written += Int64(chunk.count)
-            await onFileProgress(written)
-        }
-        return written
+
+        try? fm.removeItem(at: dst)
+        try fm.moveItem(at: tempURL, to: dst)
+
+        let written = (try? dst.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init)
+            ?? sibling.size ?? 0
+        completedBytes += written
     }
 }

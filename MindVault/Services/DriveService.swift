@@ -397,6 +397,9 @@ class DriveService: NSObject, ObservableObject {
             guard !chunks.isEmpty else {
                 throw DriveError.processingFailed("No readable text found in \(filename).")
             }
+            // Clear chunks from a previous, longer version of this document,
+            // otherwise stale trailing chunks linger in the index forever.
+            LocalVectorStore.shared.deleteAll(withPrefix: "\(fileId)_chunk")
             for (i, chunk) in chunks.enumerated() {
                 try await VectorDBService.shared.upsert(
                     id: "\(fileId)_chunk\(i)",

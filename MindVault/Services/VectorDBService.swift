@@ -48,9 +48,20 @@ class VectorDBService: ObservableObject {
                 ?? (metadata["subject"] as? String)
                 ?? type
             let vector = try EmbeddingService.shared.embedLocally(content)
+            // Preserve caller metadata (thread_id, file_id, chunk, from, date…)
+            // rather than dropping everything but the title.
+            var flat: [String: String] = [:]
+            for (key, value) in metadata where key != "title" {
+                if let array = value as? [String] {
+                    flat[key] = array.joined(separator: ", ")
+                } else {
+                    flat[key] = String(describing: value)
+                }
+            }
             LocalVectorStore.shared.upsert(LocalVectorStore.VectorDocument(
                 id: id, type: type, title: title,
-                content: content, vector: vector, indexedAt: Date()
+                content: content, vector: vector, indexedAt: Date(),
+                metadata: flat
             ))
             documentCount = LocalVectorStore.shared.documentCount
             lastError = nil
@@ -88,13 +99,15 @@ class VectorDBService: ObservableObject {
             )
             lastError = nil
             return matches.map { match in
-                SearchResult(
+                var meta: [String: AnyCodable] = [
+                    "type":  AnyCodable(match.type),
+                    "title": AnyCodable(match.title)
+                ]
+                for (key, value) in match.metadata { meta[key] = AnyCodable(value) }
+                return SearchResult(
                     id: match.id,
                     score: match.score,
-                    metadata: [
-                        "type":  AnyCodable(match.type),
-                        "title": AnyCodable(match.title)
-                    ],
+                    metadata: meta,
                     content: match.content
                 )
             }
