@@ -156,6 +156,16 @@ struct OpenAIDirectProvider: LLMProvider {
 // Inference runs on the GPU via Metal, so an A17 Pro or newer device is
 // recommended; older devices will run but slowly.
 //
+// ⚠️ MLX cannot run in the iOS Simulator at all — it needs a Metal MTLGPUFamily
+// the Simulator doesn't provide. Trying anyway fails with:
+//   "Dispatch Threads with Non-Uniform Threadgroup Size is not supported on this device"
+// Test on a physical device, or add the "Mac (Designed for iPad)" destination
+// and run on Apple Silicon. (github.com/ml-explore/mlx-swift — running-on-ios.md)
+//
+// Larger catalog models (Gemma 3 4B, Mistral 7B) may need the Increased Memory
+// Limit entitlement to avoid iOS jetsam-killing the app while loading weights:
+// target → Signing & Capabilities → + Capability → "Increased Memory Limit".
+//
 // Models are downloaded in-app via Settings → AI Mode → Browse Models.
 
 #if canImport(MLXLMCommon)

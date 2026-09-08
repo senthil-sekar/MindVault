@@ -59,6 +59,23 @@ The second package is easy to miss: mlx-swift-lm's tokenizer loader expands to c
 that calls into `swift-transformers` directly, but mlx-swift-lm doesn't declare it as
 a package dependency — Xcode won't pull it in for you.
 
+**⚠️ MLX cannot run in the iOS Simulator — you need a physical device.** MLX requires a
+Metal `MTLGPUFamily` the Simulator doesn't provide; trying anyway fails with `failed
+assertion 'Dispatch Threads with Non-Uniform Threadgroup Size is not supported on this
+device'`. That's a platform limitation, not a bug in this code. Options:
+- Run on a physical iPhone (A17 Pro or newer for good performance)
+- Add the **"Mac (Designed for iPad)"** destination in Xcode and run there instead —
+  Apple Silicon Macs have a full Metal GPU
+- UI and non-MLX features (Backend/BYOK modes, journal, everything else) work fine in
+  the Simulator as always; only `MLXArray` evaluation needs real Apple Silicon
+
+**Memory:** iOS kills apps that use too much RAM ([jetsam](https://developer.apple.com/documentation/xcode/identifying-high-memory-use-with-jetsam-event-reports)).
+The larger catalog models (Gemma 3 4B, Mistral 7B) may need the
+[Increased Memory Limit entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_developer_kernel_increased-memory-limit)
+(Xcode → target → Signing & Capabilities → **+ Capability** → "Increased Memory Limit")
+to avoid termination on devices where RAM would otherwise allow it. Not required for the
+Fast-tier models (~0.7–0.8 GB).
+
 Requires **Xcode 26+** (mlx-swift-lm is swift-tools-version 6.2) and iOS 17+. An A17 Pro
 or newer device is recommended — inference runs on the GPU via Metal. Until both packages
 are linked, the app builds and runs normally and On-Device mode reports that generation

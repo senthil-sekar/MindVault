@@ -98,6 +98,16 @@ Both are required — mlx-swift-lm's tokenizer loader needs `swift-transformers`
 doesn't pull it in automatically. Needs Xcode 26+ (mlx-swift-lm is swift-tools-version
 6.2). Retrieval and embedding work without either package; only generation is blocked.
 
+**"Dispatch Threads with Non-Uniform Threadgroup Size is not supported on this device."**
+You're running in the iOS Simulator. MLX needs a real Metal GPU and cannot run there at
+all — this isn't fixable in code. Run on a physical device (A17 Pro+ recommended), or add
+the "Mac (Designed for iPad)" destination in Xcode and run on an Apple Silicon Mac instead.
+
+**App gets killed while loading a model.** iOS terminates apps that exceed their memory
+budget (jetsam). Add the Increased Memory Limit capability: Xcode → target → Signing &
+Capabilities → **+ Capability** → "Increased Memory Limit". More likely with the larger
+catalog models (Gemma 3 4B, Mistral 7B) than the ~0.7–0.8 GB Fast-tier ones.
+
 **"No local model selected."** Download one in **Settings → AI Mode → Browse Models**.
 Start with Llama 3.2 3B (~1.8 GB) — the best speed/quality balance on an iPhone 16 Plus.
 
