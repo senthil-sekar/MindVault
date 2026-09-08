@@ -263,18 +263,26 @@ final class ModelDownloadManager: ObservableObject {
         let fm = FileManager.default
         try fm.createDirectory(at: model.localDirectory, withIntermediateDirectories: true)
 
-        var progress = DownloadProgress(totalFiles: files.count, totalBytes: totalBytes)
-        await onProgress(progress)
+        await onProgress(DownloadProgress(totalFiles: files.count, totalBytes: totalBytes))
 
-        var globalDownloaded: Int64 = 0
+        // Bytes from files already finished. Only mutated between files — never
+        // from inside the progress closure, which would be a data race.
+        var completedBytes: Int64 = 0
 
         // 3. Download each file
         for (index, sibling) in files.enumerated() {
             try Task.checkCancellation()
 
-            progress.fileIndex = index + 1
-            progress.currentFileName = URL(fileURLWithPath: sibling.rfilename).lastPathComponent
-            await onProgress(progress)
+            let fileIndex = index + 1
+            let fileName = URL(fileURLWithPath: sibling.rfilename).lastPathComponent
+            let base = completedBytes          // immutable snapshot for this file
+            let fileCount = files.count
+
+            await onProgress(DownloadProgress(
+                fileIndex: fileIndex, totalFiles: fileCount,
+                bytesDownloaded: base, totalBytes: totalBytes,
+                currentFileName: fileName
+            ))
 
             // Preserve any subdirectory structure inside the model folder
             let relDir = URL(fileURLWithPath: sibling.rfilename)
@@ -288,46 +296,60 @@ final class ModelDownloadManager: ObservableObject {
             if fm.fileExists(atPath: dst.path) {
                 let existing = (try? dst.resourceValues(forKeys: [.fileSizeKey]).fileSize)
                     .flatMap { Int64($0) } ?? sibling.size ?? 0
-                globalDownloaded += existing
-                progress.bytesDownloaded = globalDownloaded
-                await onProgress(progress)
+                completedBytes += existing
+                await onProgress(DownloadProgress(
+                    fileIndex: fileIndex, totalFiles: fileCount,
+                    bytesDownloaded: completedBytes, totalBytes: totalBytes,
+                    currentFileName: fileName
+                ))
                 continue
             }
 
-            try await streamToFile(from: model.resolveURL(for: sibling.rfilename), to: dst) { delta in
-                globalDownloaded += delta
-                progress.bytesDownloaded = globalDownloaded
-                await onProgress(progress)
+            // The closure captures only immutable values, so there's nothing to race on.
+            let written = try await streamToFile(
+                from: model.resolveURL(for: sibling.rfilename),
+                to: dst
+            ) { bytesThisFile in
+                await onProgress(DownloadProgress(
+                    fileIndex: fileIndex, totalFiles: fileCount,
+                    bytesDownloaded: base + bytesThisFile, totalBytes: totalBytes,
+                    currentFileName: fileName
+                ))
             }
+            completedBytes += written
         }
     }
 
+    /// Streams `url` to `destination`, reporting bytes written *for this file*.
+    /// Returns the total written.
     private static func streamToFile(
         from url: URL,
         to destination: URL,
-        onDelta: @Sendable (Int64) async -> Void
-    ) async throws {
+        onFileProgress: @Sendable (Int64) async -> Void
+    ) async throws -> Int64 {
         let (asyncBytes, _) = try await URLSession.shared.bytes(from: url)
 
         FileManager.default.createFile(atPath: destination.path, contents: nil)
         let handle = try FileHandle(forWritingTo: destination)
         defer { try? handle.close() }
 
+        var written: Int64 = 0
         var chunk = Data(capacity: 512 * 1024)
 
         for try await byte in asyncBytes {
             chunk.append(byte)
             if chunk.count >= 512 * 1024 {
-                let delta = Int64(chunk.count)
                 try handle.write(contentsOf: chunk)
+                written += Int64(chunk.count)
                 chunk.removeAll(keepingCapacity: true)
-                await onDelta(delta)
+                await onFileProgress(written)
             }
         }
         if !chunk.isEmpty {
-            let delta = Int64(chunk.count)
             try handle.write(contentsOf: chunk)
-            await onDelta(delta)
+            written += Int64(chunk.count)
+            await onFileProgress(written)
         }
+        return written
     }
 }

@@ -36,7 +36,11 @@ struct ModelBrowserView: View {
                             downloadError: downloadManager.downloadErrors[model.id],
                             onDownload:  { downloadManager.startDownload(for: model) },
                             onCancel:    { downloadManager.cancelDownload(for: model) },
-                            onSelect:    { localModelPath = model.localDirectory.path },
+                            onSelect: {
+                                localModelPath = model.localDirectory.path
+                                // Drop the previously resident model's weights.
+                                Task { await LocalModelRuntime.unloadModel() }
+                            },
                             onDelete:    { modelToDelete = model }
                         )
                         .id(refreshToken)
@@ -59,7 +63,11 @@ struct ModelBrowserView: View {
             Button("Delete", role: .destructive) {
                 if let model = modelToDelete {
                     try? downloadManager.uninstall(model)
-                    if localModelPath == model.localDirectory.path { localModelPath = "" }
+                    if localModelPath == model.localDirectory.path {
+                        localModelPath = ""
+                        // Don't keep the deleted model's weights resident.
+                        Task { await LocalModelRuntime.unloadModel() }
+                    }
                     modelToDelete = nil
                     refreshToken = UUID()
                 }

@@ -177,6 +177,18 @@ actor MLXModelCache {
 }
 #endif
 
+/// Always-available entry point for controlling on-device model residency,
+/// so callers don't need their own `#if canImport` guards.
+enum LocalModelRuntime {
+    /// Releases resident model weights (gigabytes of RAM). Call when the user
+    /// switches to a different model or deletes the loaded one.
+    static func unloadModel() async {
+        #if canImport(MLXLMCommon)
+        await MLXModelCache.shared.evict()
+        #endif
+    }
+}
+
 struct LocalLLMProvider: LLMProvider {
     let modelPath: String
 
