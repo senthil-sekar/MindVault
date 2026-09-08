@@ -687,63 +687,6 @@ class EmailService: NSObject, ObservableObject {
         return true // Assume exists if we can't check
     }
     
-    // MARK: - RAG Processing
-    
-    private func processEmailsForRAG(messages: [GmailMessage]) async {
-        // Process emails for RAG context and send to backend
-        print("🔄 Starting to process \(messages.count) emails for RAG...")
-        
-        for (index, message) in messages.enumerated() {
-            // Capture message ID before using in predicate
-            let messageId = message.id
-            print("📧 Processing email \(index + 1)/\(messages.count): \(message.subject)")
-            
-            // Find the EmailMessage in the database using traditional fetch
-            let descriptor = FetchDescriptor<EmailMessage>()
-            
-            if let emailMessages = try? modelContext.fetch(descriptor) {
-                // Filter in memory to avoid predicate macro issues
-                if let emailMessage = emailMessages.first(where: { $0.messageId == messageId }) {
-                    // Create a document with email content
-                    let content = """
-                    From: \(emailMessage.from)
-                    Subject: \(emailMessage.subject)
-                    Date: \(emailMessage.date.formatted(date: .abbreviated, time: .shortened))
-                    
-                    \(emailMessage.body)
-                    """
-                    
-                    var metadata: [String: Any] = [
-                        "type": "email",
-                        "from": emailMessage.from,
-                        "subject": emailMessage.subject,
-                        "date": ISO8601DateFormatter().string(from: emailMessage.date)
-                    ]
-                    
-                    if let threadId = emailMessage.threadId {
-                        metadata["thread_id"] = threadId
-                    }
-                    
-                    // Send to backend for embedding and storage
-                    do {
-                        print("  → Sending to backend: \(emailMessage.subject)")
-                        try await VectorDBService.shared.upsert(id: emailMessage.id.uuidString, content: content, type: "email", metadata: metadata)
-                        print("✅ Email indexed: \(emailMessage.subject)")
-                        emailMessage.isProcessedForAI = true
-                        try modelContext.save()
-                    } catch {
-                        print("❌ Failed to process email \(emailMessage.subject): \(error.localizedDescription)")
-                    }
-                } else {
-                    print("  ⚠️  Email not found in database: \(messageId)")
-                }
-            } else {
-                print("  ⚠️  Failed to fetch emails from database")
-            }
-        }
-        print("✨ Finished processing emails")
-    }
-    
     private func fetchMessages(accessToken: String, limit: Int) async throws -> [GmailMessage] {
         // Fetch message list
         let listURL = URL(string: "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=\(limit)")!

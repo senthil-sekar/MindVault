@@ -154,12 +154,7 @@ class DriveService: NSObject, ObservableObject {
             .data(using: .utf8)
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        
-        // Debug response
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("🔐 Token response: \(jsonString)")
-        }
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw DriveError.authenticationFailed("Invalid response")
         }
@@ -267,15 +262,8 @@ class DriveService: NSObject, ObservableObject {
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            
-            // Debug: Print the response
-            if let jsonString = String(data: data, encoding: .utf8) {
-                print("📁 Drive API Response: \(jsonString.prefix(500))")
-            }
-            
+
             if let httpResponse = response as? HTTPURLResponse {
-                print("📁 Drive API Status: \(httpResponse.statusCode)")
-                
                 if httpResponse.statusCode == 401 {
                     // Token expired, try refresh
                     try await refreshAccessToken()

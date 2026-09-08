@@ -111,10 +111,18 @@ struct EmailAccountConnectionView: View {
                                 .foregroundColor(.white)
                                 .cornerRadius(12)
                             }
-                            .disabled(emailService.isConnecting || selectedProvider == .outlook || selectedProvider == .icloud || selectedProvider == .other)
-                            
+                            .disabled(
+                                emailService.isConnecting
+                                || selectedProvider == .outlook || selectedProvider == .icloud || selectedProvider == .other
+                                || (selectedProvider == .gmail && !emailService.isConfigured())
+                            )
+
                             if selectedProvider != .gmail {
                                 Text("\(selectedProvider.rawValue) support coming soon")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else if !emailService.isConfigured() {
+                                Text("Gmail isn't configured for this build — see docs/EMAIL_CONFIGURATION_GUIDE.md.")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }

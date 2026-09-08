@@ -371,6 +371,8 @@ struct SettingsView: View {
     @Query private var journalEntries: [JournalEntry]
     @Query private var allProfileItems: [ProfileItem]
 
+    @ObservedObject private var vectorDB = VectorDBService.shared
+
     @State private var showEmailConnection = false
     @State private var showEmailList = false
     @State private var openAIKeyEntry = ""
@@ -429,6 +431,15 @@ struct SettingsView: View {
                     Text(llmMode.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if llmMode != .localLLM {
+                        Label(
+                            vectorDB.isConnected ? "Backend Connected" : "Backend Unreachable",
+                            systemImage: vectorDB.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(vectorDB.isConnected ? .green : .orange)
+                    }
                 }
 
                 if llmMode == .backend {
@@ -553,6 +564,9 @@ struct SettingsView: View {
             .onAppear {
                 openAIKeyEntry = (try? KeychainService.shared.retrieveAPIKey(for: "openai")) ?? ""
                 apiKeySaved = !openAIKeyEntry.isEmpty
+            }
+            .task(id: llmModeRaw) {
+                await vectorDB.checkConnection()
             }
             .confirmationDialog(
                 "Clear all AI data?",

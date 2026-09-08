@@ -11,7 +11,8 @@ import SwiftData
 @main
 struct MindVaultApp: App {
     let modelContainer: ModelContainer
-    
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
         do {
             let schema = Schema([
@@ -44,6 +45,13 @@ struct MindVaultApp: App {
                 .environmentObject(AppState())
         }
         .modelContainer(modelContainer)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background {
+                // Persist any writes still sitting in LocalVectorStore's debounce
+                // window before iOS can suspend or terminate the process.
+                Task { await LocalVectorStore.shared.flush() }
+            }
+        }
     }
 }
 
