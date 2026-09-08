@@ -47,25 +47,3 @@ class AgentResult:
     partial_answer: str = ""
     confidence: float = 0.0
     error: Optional[str] = None
-
-
-class OrchestratorState:
-    """
-    Shared state passed through the LangGraph pipeline.
-    
-    This is a plain dict-based state that LangGraph uses to track
-    the query through routing → agent execution → synthesis.
-    """
-    pass
-
-
-# State keys used by the graph
-STATE_KEYS = {
-    "query": str,                    # User's original query
-    "history": list,                 # Chat history
-    "intent": str,                   # Classified intent
-    "target_agents": list,           # Which agents to invoke
-    "agent_results": list,           # Results from each agent
-    "final_response": str,           # Synthesized response
-    "contexts": list,                # All contexts for citation
-}

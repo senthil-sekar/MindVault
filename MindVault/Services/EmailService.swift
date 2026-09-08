@@ -344,8 +344,6 @@ class EmailService: NSObject, ObservableObject {
             return
         }
         
-        let apiClient = APIClient.shared
-        
         for (index, emailMessage) in emails.enumerated() {
             print("💾 Processing email \(index + 1)/\(emails.count): \(emailMessage.subject)")
             
@@ -373,7 +371,7 @@ class EmailService: NSObject, ObservableObject {
             // Send to backend
             do {
                 print("  → Sending to backend: \(emailMessage.subject)")
-                try await apiClient.upsert(id: emailMessage.id.uuidString, content: content, metadata: metadata)
+                try await VectorDBService.shared.upsert(id: emailMessage.id.uuidString, content: content, type: "email", metadata: metadata)
                 print("✅ Email indexed: \(emailMessage.subject)")
                 emailMessage.isProcessedForAI = true
                 try modelContext.save()
@@ -455,26 +453,47 @@ class EmailService: NSObject, ObservableObject {
                 modelContext.insert(emailMessage)
                 try modelContext.save()
                 
-                // Process this email using the improved backend processing
+                // Index the email for retrieval.
                 do {
-                    print("  → Sending to backend (improved processing): \(message.subject)")
-                    let apiClient = APIClient.shared
-                    
-                    // Use the new email-specific endpoint that handles:
-                    // - HTML cleaning
-                    // - Signature/disclaimer removal
-                    // - Thread-aware chunking
-                    // - Rich metadata for hybrid search
-                    try await apiClient.upsertEmail(
-                        id: emailMessage.id.uuidString,
-                        content: message.body,
-                        subject: message.subject,
-                        sender: message.from,
-                        date: message.date,
-                        threadId: message.threadId.isEmpty ? nil : message.threadId,
-                        labels: message.labels.isEmpty ? nil : message.labels
-                    )
-                    
+                    if Configuration.llmMode == .localLLM {
+                        // On-device: no backend to do HTML cleaning / thread chunking,
+                        // so index the plain body through the local vector store.
+                        var metadata: [String: Any] = [
+                            "type": "email",
+                            "from": message.from,
+                            "subject": message.subject,
+                            "date": ISO8601DateFormatter().string(from: message.date)
+                        ]
+                        if !message.threadId.isEmpty { metadata["thread_id"] = message.threadId }
+                        if !message.labels.isEmpty { metadata["labels"] = message.labels }
+
+                        let content = """
+                        From: \(message.from)
+                        Subject: \(message.subject)
+
+                        \(message.body)
+                        """
+                        try await VectorDBService.shared.upsert(
+                            id: emailMessage.id.uuidString,
+                            content: content,
+                            type: "email",
+                            metadata: metadata
+                        )
+                    } else {
+                        // Backend path uses the email-specific endpoint, which handles
+                        // HTML cleaning, signature/disclaimer removal, thread-aware
+                        // chunking, and rich metadata for hybrid search.
+                        try await APIClient.shared.upsertEmail(
+                            id: emailMessage.id.uuidString,
+                            content: message.body,
+                            subject: message.subject,
+                            sender: message.from,
+                            date: message.date,
+                            threadId: message.threadId.isEmpty ? nil : message.threadId,
+                            labels: message.labels.isEmpty ? nil : message.labels
+                        )
+                    }
+
                     print("✅ Email indexed: \(message.subject)")
                     emailMessage.isProcessedForAI = true
                     try modelContext.save()
@@ -518,15 +537,13 @@ class EmailService: NSObject, ObservableObject {
         
         print("🗑️ Found \(deletedEmails.count) emails to remove (deleted from Gmail)")
         
-        let apiClient = APIClient.shared
-        
         for email in deletedEmails {
             print("  🗑️ Removing: \(email.subject)")
             
             // Remove from vector DB if it was processed
             if email.isProcessedForAI {
                 do {
-                    try await apiClient.delete(id: email.id.uuidString)
+                    try await VectorDBService.shared.delete(id: email.id.uuidString)
                     print("  ✅ Removed from vector DB: \(email.subject)")
                 } catch {
                     print("  ⚠️ Failed to remove from vector DB: \(error.localizedDescription)")
@@ -570,8 +587,6 @@ class EmailService: NSObject, ObservableObject {
         print("📧 Checking \(accountEmails.count) local emails against Gmail...")
         
         var deletedCount = 0
-        let apiClient = APIClient.shared
-        
         for (index, email) in accountEmails.enumerated() {
             syncProgress = Double(index) / Double(accountEmails.count)
             
@@ -584,7 +599,7 @@ class EmailService: NSObject, ObservableObject {
                 // Remove from vector DB
                 if email.isProcessedForAI {
                     do {
-                        try await apiClient.delete(id: email.id.uuidString)
+                        try await VectorDBService.shared.delete(id: email.id.uuidString)
                         print("    ✅ Removed from vector DB")
                     } catch {
                         print("    ⚠️ Failed to remove from vector DB: \(error.localizedDescription)")
@@ -615,8 +630,6 @@ class EmailService: NSObject, ObservableObject {
         lastError = nil
         defer { isSyncing = false }
         
-        let apiClient = APIClient.shared
-        
         // Step 1: Delete all local emails for this account
         let descriptor = FetchDescriptor<EmailMessage>()
         let allLocalEmails = try modelContext.fetch(descriptor)
@@ -630,7 +643,7 @@ class EmailService: NSObject, ObservableObject {
             // Delete from vector DB if processed
             if email.isProcessedForAI {
                 do {
-                    try await apiClient.delete(id: email.id.uuidString)
+                    try await VectorDBService.shared.delete(id: email.id.uuidString)
                 } catch {
                     print("  ⚠️ Failed to delete from vector DB: \(error.localizedDescription)")
                 }
@@ -643,41 +656,16 @@ class EmailService: NSObject, ObservableObject {
         try modelContext.save()
         print("✅ Cleared all local emails")
         
-        syncProgress = 0.3
-        
-        // Step 2: Clear the entire vector DB collection (for emails)
-        // This ensures no orphaned embeddings remain
-        print("🗑️ Clearing vector DB...")
-        do {
-            // Delete the collection and let it be recreated
-            try await clearVectorDBEmailsCollection()
-        } catch {
-            print("  ⚠️ Could not clear vector DB collection: \(error.localizedDescription)")
-        }
-        
         syncProgress = 0.4
-        
-        // Step 3: Resync fresh
+
+        // Step 2: Resync fresh
+        // (Each email's embedding was already removed individually above. We
+        // deliberately do NOT drop the whole vector collection here — it also
+        // holds journal entries and profile items.)
         print("🔄 Resyncing emails fresh...")
         try await syncEmails(for: account, limit: 100)
         
         print("✨ Clear and resync complete!")
-    }
-    
-    /// Clear all email embeddings from vector DB
-    private func clearVectorDBEmailsCollection() async throws {
-        // We'll just delete the Qdrant collection and let it be recreated
-        guard let url = URL(string: "http://\(Configuration.serverURL.replacingOccurrences(of: "http://", with: "").replacingOccurrences(of: ":8000", with: "")):6333/collections/mindvault") else {
-            return
-        }
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        
-        let (_, response) = try await URLSession.shared.data(for: request)
-        if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-            print("✅ Cleared vector DB collection")
-        }
     }
     
     /// Check if an email exists in Gmail
@@ -703,7 +691,6 @@ class EmailService: NSObject, ObservableObject {
     
     private func processEmailsForRAG(messages: [GmailMessage]) async {
         // Process emails for RAG context and send to backend
-        let apiClient = APIClient.shared
         print("🔄 Starting to process \(messages.count) emails for RAG...")
         
         for (index, message) in messages.enumerated() {
@@ -740,7 +727,7 @@ class EmailService: NSObject, ObservableObject {
                     // Send to backend for embedding and storage
                     do {
                         print("  → Sending to backend: \(emailMessage.subject)")
-                        try await apiClient.upsert(id: emailMessage.id.uuidString, content: content, metadata: metadata)
+                        try await VectorDBService.shared.upsert(id: emailMessage.id.uuidString, content: content, type: "email", metadata: metadata)
                         print("✅ Email indexed: \(emailMessage.subject)")
                         emailMessage.isProcessedForAI = true
                         try modelContext.save()

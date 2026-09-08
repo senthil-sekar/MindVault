@@ -8,6 +8,7 @@
 import Foundation
 import AuthenticationServices
 import CommonCrypto
+import PDFKit
 
 @MainActor
 class DriveService: NSObject, ObservableObject {
@@ -22,7 +23,6 @@ class DriveService: NSObject, ObservableObject {
     @Published var files: [DriveFileItem] = []
     
     // MARK: - Private Properties
-    private let apiClient = APIClient.shared
     private var accessToken: String?
     private var refreshToken: String?
     
@@ -389,9 +389,34 @@ class DriveService: NSObject, ObservableObject {
             actualMimeType = mimeType
         }
         
+        // On-device mode: extract text locally and index into the local vector
+        // store instead of shipping the file to the backend.
+        if Configuration.llmMode == .localLLM {
+            let text = try extractTextOnDevice(from: data, mimeType: actualMimeType, filename: filename)
+            let chunks = Self.chunk(text)
+            guard !chunks.isEmpty else {
+                throw DriveError.processingFailed("No readable text found in \(filename).")
+            }
+            for (i, chunk) in chunks.enumerated() {
+                try await VectorDBService.shared.upsert(
+                    id: "\(fileId)_chunk\(i)",
+                    content: chunk,
+                    type: "document",
+                    metadata: [
+                        "title": filename,
+                        "file_id": fileId,
+                        "source": "google_drive",
+                        "chunk": i
+                    ]
+                )
+            }
+            syncStatus = "Indexed \(filename) (\(chunks.count) chunks)"
+            return chunks.count
+        }
+
         // Send to backend for processing
         let base64Content = data.base64EncodedString()
-        
+
         let requestBody: [String: Any] = [
             "file_id": fileId,
             "filename": filename,
@@ -399,7 +424,7 @@ class DriveService: NSObject, ObservableObject {
             "content_base64": base64Content,
             "source": "google_drive"
         ]
-        
+
         let url = URL(string: Configuration.Endpoints.upsertDocument)!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -416,6 +441,59 @@ class DriveService: NSObject, ObservableObject {
         } else {
             throw DriveError.processingFailed(response.message)
         }
+    }
+
+    // MARK: - On-Device Text Extraction
+
+    /// Extracts plain text without a backend. PDFKit covers PDFs — including
+    /// Google Docs, which are exported as PDF above — and UTF-8 text files.
+    /// Other binary formats (.docx, .pptx) still need the backend's parsers.
+    private func extractTextOnDevice(from data: Data, mimeType: String, filename: String) throws -> String {
+        let lower = filename.lowercased()
+
+        if mimeType == "application/pdf" || lower.hasSuffix(".pdf") {
+            guard let doc = PDFDocument(data: data) else {
+                throw DriveError.processingFailed("Could not read \(filename) as a PDF.")
+            }
+            var text = ""
+            for i in 0 ..< doc.pageCount {
+                if let page = doc.page(at: i), let pageText = page.string {
+                    text += pageText + "\n"
+                }
+            }
+            return text
+        }
+
+        if mimeType.hasPrefix("text/") || lower.hasSuffix(".txt") || lower.hasSuffix(".md")
+            || lower.hasSuffix(".csv") || lower.hasSuffix(".json") {
+            guard let text = String(data: data, encoding: .utf8) else {
+                throw DriveError.processingFailed("Could not decode \(filename) as text.")
+            }
+            return text
+        }
+
+        throw DriveError.processingFailed(
+            "On-Device mode can index PDFs, Google Docs, and text files. \(filename) needs the backend for text extraction."
+        )
+    }
+
+    /// Splits text into overlapping chunks so retrieval can target sections
+    /// rather than whole documents.
+    private static func chunk(_ text: String, size: Int = 1500, overlap: Int = 200) -> [String] {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return [] }
+        guard cleaned.count > size else { return [cleaned] }
+
+        var chunks: [String] = []
+        var start = cleaned.startIndex
+        while start < cleaned.endIndex {
+            let end = cleaned.index(start, offsetBy: size, limitedBy: cleaned.endIndex) ?? cleaned.endIndex
+            let piece = cleaned[start ..< end].trimmingCharacters(in: .whitespacesAndNewlines)
+            if !piece.isEmpty { chunks.append(piece) }
+            if end == cleaned.endIndex { break }
+            start = cleaned.index(end, offsetBy: -overlap, limitedBy: cleaned.startIndex) ?? end
+        }
+        return chunks
     }
     
     func syncFolder(folderId: String, recursive: Bool = false) async throws -> (processed: Int, failed: Int) {
