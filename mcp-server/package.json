@@ -14,8 +14,7 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "googleapis": "^130.0.0",
     "pdf-parse": "^1.1.1",
-    "mammoth": "^1.6.0",
-    "zod": "^3.22.4"
+    "mammoth": "^1.6.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
