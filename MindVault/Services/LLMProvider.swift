@@ -132,47 +132,86 @@ struct OpenAIDirectProvider: LLMProvider {
     }
 }
 
-// MARK: - Local LLM Provider  (MLX-Swift — A17 Pro+ iPhones)
+// MARK: - Local LLM Provider  (MLX Swift — on-device inference)
 //
-// To activate on-device inference:
-//   1. In Xcode → File → Add Package Dependencies:
-//      https://github.com/ml-explore/mlx-swift-examples
-//      Select the "MLXLM" library target.
-//   2. The #if canImport(MLXLM) block below becomes active automatically.
+// To activate on-device inference (one-time Xcode step):
+//   1. File → Add Package Dependencies…
+//        https://github.com/ml-explore/mlx-swift-lm      (Up to Next Major, 3.31.3)
+//   2. Add the "MLXLLM" and "MLXLMCommon" library products to the MindVault target.
+//   3. The #if canImport(MLXLMCommon) block below activates automatically.
 //
-// Model setup (one-time per model):
-//   - Download a 4-bit quantized MLX model from Hugging Face, e.g.:
-//       mlx-community/Llama-3.2-1B-Instruct-4bit   (~700 MB)
-//       mlx-community/Phi-3.5-mini-instruct-4bit   (~2.2 GB)
-//   - Copy the entire model folder (config.json + *.safetensors) to the
-//     app's Documents directory via Files.app or Xcode → Devices.
-//   - The folder appears in Settings → AI Mode → Local Model.
+// Requires Xcode 26+ (the package is swift-tools-version 6.2) and iOS 17+.
+// Inference runs on the GPU via Metal, so an A17 Pro or newer device is
+// recommended; older devices will run but slowly.
+//
+// Models are downloaded in-app via Settings → AI Mode → Browse Models.
+
+#if canImport(MLXLMCommon)
+import MLXLLM
+import MLXLMCommon
+
+/// Keeps one model resident between messages — weights are multi-gigabyte,
+/// so reloading per request would make chat unusable.
+actor MLXModelCache {
+    static let shared = MLXModelCache()
+
+    private var loadedPath: String?
+    private var loaded: ModelContainer?
+
+    func container(forModelAt path: String) async throws -> ModelContainer {
+        if let loaded, loadedPath == path { return loaded }
+        let fresh = try await loadModelContainer(
+            from: URL(fileURLWithPath: path),
+            using: TokenizersLoader()
+        )
+        loaded = fresh
+        loadedPath = path
+        return fresh
+    }
+
+    /// Free the weights, e.g. when the user switches or deletes a model.
+    func evict() {
+        loaded = nil
+        loadedPath = nil
+    }
+}
+#endif
 
 struct LocalLLMProvider: LLMProvider {
     let modelPath: String
 
     func complete(systemPrompt: String, userMessage: String, history: [[String: String]]) async throws -> String {
         guard !modelPath.isEmpty else { throw LLMError.noModelSelected }
-        #if canImport(MLXLM)
-        let modelURL = URL(fileURLWithPath: modelPath)
-        let config = ModelConfiguration(directory: modelURL)
-        let container = try await LLMModelFactory.shared.loadContainer(configuration: config)
 
-        var messages: [[String: String]] = [["role": "system", "content": systemPrompt]]
-        messages.append(contentsOf: history)
-        messages.append(["role": "user", "content": userMessage])
-
-        let result = try await container.perform { context in
-            let input = try await context.processor.prepare(input: .init(messages: messages))
-            return try MLXLMCommon.generate(
-                input: input,
-                parameters: .init(temperature: Float(Configuration.LLM.temperature)),
-                context: context
-            ) { _ in .more }
+        let dir = URL(fileURLWithPath: modelPath)
+        guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("config.json").path) else {
+            throw LLMError.modelFilesMissing
         }
-        let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !output.isEmpty else { throw LLMError.emptyResponse }
-        return output
+
+        #if canImport(MLXLMCommon)
+        let container = try await MLXModelCache.shared.container(forModelAt: modelPath)
+        let session = ChatSession(container, instructions: systemPrompt)
+
+        let prior: [Chat.Message] = history.compactMap { entry in
+            guard let role = entry["role"],
+                  let content = entry["content"], !content.isEmpty else { return nil }
+            switch role {
+            case "assistant": return .assistant(content)
+            case "system":    return .system(content)
+            default:          return .user(content)
+            }
+        }
+
+        let output: String
+        if prior.isEmpty {
+            output = try await session.respond(to: userMessage)
+        } else {
+            output = try await session.respond(to: prior + [.user(userMessage)])
+        }
+
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw LLMError.emptyResponse }
+        return trimmed
         #else
         throw LLMError.mlxPackageNotInstalled
         #endif
@@ -228,6 +267,7 @@ enum LLMError: LocalizedError {
     case networkError
     case serverError(Int)
     case noModelSelected
+    case modelFilesMissing
     case mlxPackageNotInstalled
 
     var errorDescription: String? {
@@ -246,8 +286,10 @@ enum LLMError: LocalizedError {
             return "Server error (\(code)). Try again later."
         case .noModelSelected:
             return "No local model selected. Choose a model in Settings → AI Mode."
+        case .modelFilesMissing:
+            return "The selected model's files are missing or incomplete. Re-download it in Settings → AI Mode → Browse Models."
         case .mlxPackageNotInstalled:
-            return "MLX-Swift package not yet linked. Add mlx-swift-examples in Xcode → Add Package Dependencies."
+            return "On-device inference isn't linked yet. Add the mlx-swift-lm package (MLXLLM + MLXLMCommon) in Xcode → Add Package Dependencies."
         }
     }
 }

@@ -366,10 +366,16 @@ struct SettingsView: View {
     @AppStorage("localModelPath") private var localModelPath = ""
     @AppStorage("autoSync")      private var autoSync     = true
 
+    @Query private var journalEntries: [JournalEntry]
+    @Query private var allProfileItems: [ProfileItem]
+
     @State private var showEmailConnection = false
     @State private var showEmailList = false
     @State private var openAIKeyEntry = ""
     @State private var apiKeySaved = false
+    @State private var isSyncing = false
+    @State private var syncStatus: String?
+    @State private var showClearDataConfirm = false
 
     private var llmMode: LLMProviderMode {
         LLMProviderMode(rawValue: llmModeRaw) ?? .backend
@@ -479,14 +485,30 @@ struct SettingsView: View {
                 
                 Section("Sync Settings") {
                     Toggle("Auto-sync new entries", isOn: $autoSync)
-                    
-                    Button("Sync All Now") {
-                        // Trigger sync
+
+                    Button {
+                        Task { await syncAllNow() }
+                    } label: {
+                        HStack {
+                            Text(isSyncing ? "Syncing…" : "Sync All Now")
+                            if isSyncing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
                     }
-                    
+                    .disabled(isSyncing)
+
+                    if let syncStatus {
+                        Text(syncStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Button("Clear AI Data", role: .destructive) {
-                        // Clear embeddings
+                        showClearDataConfirm = true
                     }
+                    .disabled(isSyncing)
                 }
                 
                 Section("Data") {
@@ -530,7 +552,55 @@ struct SettingsView: View {
                 openAIKeyEntry = (try? KeychainService.shared.retrieveAPIKey(for: "openai")) ?? ""
                 apiKeySaved = !openAIKeyEntry.isEmpty
             }
+            .confirmationDialog(
+                "Clear all AI data?",
+                isPresented: $showClearDataConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Clear AI Data", role: .destructive) { clearAIData() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Removes every search index entry. Your journal entries and profile stay untouched — you can re-index anytime with Sync All Now.")
+            }
         }
+    }
+
+    // MARK: - Sync / Index Helpers
+
+    private func syncAllNow() async {
+        isSyncing = true
+        syncStatus = nil
+        let result = await RAGService.shared.syncAllEntries(
+            entries: journalEntries,
+            items: allProfileItems
+        )
+        isSyncing = false
+        syncStatus = result.failed == 0
+            ? "Indexed \(result.success) item\(result.success == 1 ? "" : "s")."
+            : "Indexed \(result.success), failed \(result.failed)."
+    }
+
+    private func clearAIData() {
+        if llmMode == .localLLM {
+            LocalVectorStore.shared.deleteAll()
+        } else {
+            let ids = journalEntries.compactMap(\.embeddingId) + allProfileItems.compactMap(\.embeddingId)
+            Task {
+                for id in ids {
+                    try? await APIClient.shared.delete(request: DeleteRequest(id: id))
+                }
+            }
+        }
+        // Reset local flags so Sync All Now re-indexes everything.
+        for entry in journalEntries {
+            entry.isEmbedded = false
+            entry.embeddingId = nil
+        }
+        for item in allProfileItems {
+            item.isEmbedded = false
+            item.embeddingId = nil
+        }
+        syncStatus = "AI index cleared."
     }
 
     // MARK: - Keychain Helpers
