@@ -2,7 +2,7 @@
 //  LLMService.swift
 //  MindVault
 //
-//  Service for interacting with LLM for chat responses
+//  Dispatches LLM calls to the active provider (backend, OpenAI BYOK, or local model).
 //
 
 import Foundation
@@ -10,15 +10,29 @@ import Foundation
 @MainActor
 class LLMService: ObservableObject {
     static let shared = LLMService()
-    
+
     @Published var isGenerating = false
     @Published var lastError: String?
-    
-    private let apiClient = APIClient.shared
-    
+
     private init() {}
-    
-    // MARK: - Generate Response
+
+    // MARK: - Active Provider
+
+    /// Returns the provider that matches the user's current AI Mode setting.
+    static var activeProvider: any LLMProvider {
+        switch Configuration.llmMode {
+        case .backend:
+            return BackendLLMProvider()
+        case .openAI:
+            let key = (try? KeychainService.shared.retrieveAPIKey(for: "openai")) ?? ""
+            return OpenAIDirectProvider(apiKey: key, model: Configuration.BYOK.openAIModel)
+        case .localLLM:
+            return LocalLLMProvider(modelPath: Configuration.BYOK.localModelPath)
+        }
+    }
+
+    // MARK: - Generate Response (with RAG context)
+
     func generateResponse(
         message: String,
         context: [String],
@@ -26,70 +40,76 @@ class LLMService: ObservableObject {
     ) async throws -> String {
         isGenerating = true
         defer { isGenerating = false }
-        
-        // Build the prompt with context
+
         let contextPrompt = buildContextPrompt(context)
         let fullMessage = "\(contextPrompt)\n\nUser Question: \(message)"
-        
-        // Format conversation history
         let history = conversationHistory.map { ["role": $0.role, "content": $0.content] }
-        
+
         do {
-            let response = try await apiClient.chat(
-                message: fullMessage,
-                conversationHistory: history
+            let response = try await LLMService.activeProvider.complete(
+                systemPrompt: Configuration.LLM.systemPrompt,
+                userMessage: fullMessage,
+                history: history
             )
             lastError = nil
-            return response.response
+            return response
         } catch {
             lastError = error.localizedDescription
             throw error
         }
     }
-    
-    // MARK: - Build Context Prompt
+
+    // MARK: - Summarize
+
+    func summarize(text: String, maxLength: Int = 200) async throws -> String {
+        let msg = "Summarize the following text in \(maxLength) characters or less:\n\n\(text)"
+        return try await LLMService.activeProvider.complete(
+            systemPrompt: Configuration.LLM.systemPrompt,
+            userMessage: msg,
+            history: []
+        )
+    }
+
+    // MARK: - Generate Title
+
+    func generateTitle(for content: String) async throws -> String {
+        let msg = "Generate a short, descriptive title (5-10 words) for this journal entry:\n\n\(content.prefix(500))"
+        let response = try await LLMService.activeProvider.complete(
+            systemPrompt: Configuration.LLM.systemPrompt,
+            userMessage: msg,
+            history: []
+        )
+        return response.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - Suggest Tags
+
+    func suggestTags(for content: String) async throws -> [String] {
+        let msg = "Suggest 3-5 relevant tags for this journal entry. Return only the tags separated by commas, no explanations:\n\n\(content.prefix(500))"
+        let response = try await LLMService.activeProvider.complete(
+            systemPrompt: Configuration.LLM.systemPrompt,
+            userMessage: msg,
+            history: []
+        )
+        return response
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            .filter { !$0.isEmpty }
+            .prefix(5)
+            .map { String($0) }
+    }
+
+    // MARK: - Context Prompt Builder
+
     private func buildContextPrompt(_ contexts: [String]) -> String {
         guard !contexts.isEmpty else {
             return "No relevant context found in the user's journal."
         }
-        
         var prompt = "Here is relevant information from the user's personal journal and profile:\n\n"
-        
-        for (index, context) in contexts.enumerated() {
-            prompt += "--- Context \(index + 1) ---\n\(context)\n\n"
+        for (i, ctx) in contexts.enumerated() {
+            prompt += "--- Context \(i + 1) ---\n\(ctx)\n\n"
         }
-        
-        prompt += "---\n\nBased on the above context, please answer the following question. If the context doesn't contain enough information to fully answer the question, say so and provide what you can based on available information."
-        
+        prompt += "---\n\nBased on the above context, please answer the following question. If the context doesn't contain enough information, say so."
         return prompt
-    }
-    
-    // MARK: - Summarize Text
-    func summarize(text: String, maxLength: Int = 200) async throws -> String {
-        let prompt = "Please summarize the following text in \(maxLength) characters or less:\n\n\(text)"
-        
-        let response = try await apiClient.chat(message: prompt, conversationHistory: nil)
-        return response.response
-    }
-    
-    // MARK: - Generate Title
-    func generateTitle(for content: String) async throws -> String {
-        let prompt = "Generate a short, descriptive title (5-10 words) for this journal entry:\n\n\(content.prefix(500))"
-        
-        let response = try await apiClient.chat(message: prompt, conversationHistory: nil)
-        return response.response.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-    
-    // MARK: - Suggest Tags
-    func suggestTags(for content: String) async throws -> [String] {
-        let prompt = "Suggest 3-5 relevant tags for this journal entry. Return only the tags separated by commas, no explanations:\n\n\(content.prefix(500))"
-        
-        let response = try await apiClient.chat(message: prompt, conversationHistory: nil)
-        let tags = response.response
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
-            .filter { !$0.isEmpty }
-        
-        return Array(tags.prefix(5))
     }
 }

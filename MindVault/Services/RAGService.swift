@@ -81,42 +81,76 @@ class RAGService: ObservableObject {
     func generateResponse(to query: String) async -> (String, [ChatContext]) {
         isProcessing = true
         processingStatus = "Searching your journal..."
-        
+
         do {
-            // Send query to backend RAG endpoint
-            let chatRequest = ChatRequest(message: query)
-            let response = try await apiClient.chat(request: chatRequest)
-            
-            print("📬 RAG Response received:")
-            print("   - Response length: \(response.response.count)")
-            print("   - Contexts count: \(response.contexts.count)")
-            
-            // Convert backend contexts to ChatContext
-            var contexts: [ChatContext] = []
-            for result in response.contexts {
-                print("   📎 Context: \(result.title) (score: \(result.score))")
-                let chatContext = ChatContext(
-                    documentId: result.id,
-                    documentType: result.type,
-                    title: result.title,
-                    snippet: result.snippet,
-                    relevanceScore: Float(result.score),
-                    date: nil
+            let mode = Configuration.llmMode
+
+            if mode == .backend {
+                // Backend handles embedding + search + generation end-to-end
+                let chatRequest = ChatRequest(message: query)
+                let response = try await apiClient.chat(request: chatRequest)
+                let contexts = response.contexts.map { result in
+                    ChatContext(
+                        documentId: result.id,
+                        documentType: result.type,
+                        title: result.title,
+                        snippet: result.snippet,
+                        relevanceScore: Float(result.score),
+                        date: nil
+                    )
+                }
+                lastError = nil
+                isProcessing = false
+                return (response.response, contexts)
+            } else {
+                // BYOK / Local: backend handles search; selected provider handles generation
+                processingStatus = "Retrieving relevant context..."
+                let results = try await apiClient.search(query: query, topK: Configuration.RAG.topK)
+
+                let contexts: [ChatContext] = results.compactMap { result in
+                    guard let content = result.content else { return nil }
+                    let meta = result.metadata
+                    let title = (meta["title"]?.value as? String)
+                        ?? (meta["subject"]?.value as? String)
+                        ?? "Result"
+                    let type = (meta["type"]?.value as? String) ?? "document"
+                    return ChatContext(
+                        documentId: result.id,
+                        documentType: type,
+                        title: title,
+                        snippet: String(content.prefix(300)),
+                        relevanceScore: result.score,
+                        date: nil
+                    )
+                }
+
+                processingStatus = "Generating response..."
+                let contextTexts = results.compactMap { $0.content }
+                let userMessage = buildRAGMessage(contexts: contextTexts, query: query)
+                let answer = try await LLMService.activeProvider.complete(
+                    systemPrompt: Configuration.LLM.systemPrompt,
+                    userMessage: userMessage,
+                    history: []
                 )
-                contexts.append(chatContext)
+
+                lastError = nil
+                isProcessing = false
+                return (answer, contexts)
             }
-            
-            print("   ✅ Returning \(contexts.count) contexts to ChatView")
-            
-            lastError = nil
-            isProcessing = false
-            return (response.response, contexts)
-            
         } catch {
             lastError = error.localizedDescription
             isProcessing = false
-            return ("I'm having trouble connecting to the AI service. Please check your connection and try again.", [])
+            return ("I'm having trouble connecting to the AI service. Please check your settings and try again.", [])
         }
+    }
+
+    private func buildRAGMessage(contexts: [String], query: String) -> String {
+        var msg = "Here is relevant information from the user's personal journal and profile:\n\n"
+        for (i, ctx) in contexts.enumerated() {
+            msg += "--- Context \(i + 1) ---\n\(ctx)\n\n"
+        }
+        msg += "---\n\nUser Question: \(query)"
+        return msg
     }
     
     // MARK: - Batch Sync
@@ -214,10 +248,19 @@ class RAGService: ObservableObject {
         """
         
         do {
-            let chatRequest = ChatRequest(message: prompt)
-            let response = try await apiClient.chat(request: chatRequest)
+            let response: String
+            if Configuration.llmMode == .backend {
+                let chatRequest = ChatRequest(message: prompt)
+                response = try await apiClient.chat(request: chatRequest).response
+            } else {
+                response = try await LLMService.activeProvider.complete(
+                    systemPrompt: Configuration.LLM.systemPrompt,
+                    userMessage: prompt,
+                    history: []
+                )
+            }
             isProcessing = false
-            return response.response
+            return response
         } catch {
             lastError = error.localizedDescription
             isProcessing = false

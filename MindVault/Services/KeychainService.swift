@@ -74,6 +74,49 @@ class KeychainService {
             try? deleteToken(for: account, type: type)
         }
     }
+
+    // MARK: - API Keys (BYOK)
+
+    func saveAPIKey(_ key: String, for provider: String) throws {
+        let account = "apikey_\(provider)"
+        if (try? retrieveAPIKey(for: provider)) != nil {
+            try updateToken(key, for: account)
+        } else {
+            try addToken(key, for: account)
+        }
+    }
+
+    func retrieveAPIKey(for provider: String) throws -> String {
+        let account = "apikey_\(provider)"
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let key = String(data: data, encoding: .utf8) else {
+            throw KeychainError.tokenNotFound
+        }
+        return key
+    }
+
+    func deleteAPIKey(for provider: String) throws {
+        let account = "apikey_\(provider)"
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.deleteFailed
+        }
+    }
     
     // MARK: - Private Helpers
     

@@ -360,12 +360,20 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var emailAccounts: [EmailAccount]
     
-    @AppStorage("serverURL") private var serverURL = Configuration.defaultServerURL
-    @AppStorage("openAIKey") private var openAIKey = ""
-    @AppStorage("autoSync") private var autoSync = true
-    
+    @AppStorage("serverURL")     private var serverURL    = Configuration.defaultServerURL
+    @AppStorage("llmMode")       private var llmModeRaw   = LLMProviderMode.backend.rawValue
+    @AppStorage("openAIModel")   private var openAIModel  = "gpt-4o-mini"
+    @AppStorage("localModelPath") private var localModelPath = ""
+    @AppStorage("autoSync")      private var autoSync     = true
+
     @State private var showEmailConnection = false
     @State private var showEmailList = false
+    @State private var openAIKeyEntry = ""
+    @State private var apiKeySaved = false
+
+    private var llmMode: LLMProviderMode {
+        LLMProviderMode(rawValue: llmModeRaw) ?? .backend
+    }
     
     var body: some View {
         NavigationStack {
@@ -398,16 +406,73 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section("AI Backend") {
-                    TextField("Server URL", text: $serverURL)
-                        .autocapitalization(.none)
-                        .keyboardType(.URL)
-                    Text("Default: \(Configuration.defaultServerURL)\nFor iOS Simulator use your Mac's IP (not localhost).")
+                Section("AI Mode") {
+                    Picker("Mode", selection: $llmModeRaw) {
+                        ForEach(LLMProviderMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.displayName).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Label(llmMode.privacyLabel, systemImage: llmMode.privacyIcon)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    
-                    TextField("OpenAI API Key (optional)", text: $openAIKey)
-                        .autocapitalization(.none)
+
+                    Text(llmMode.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if llmMode == .backend {
+                    Section("Backend Server") {
+                        TextField("Server URL", text: $serverURL)
+                            .autocapitalization(.none)
+                            .keyboardType(.URL)
+                        Text("Default: \(Configuration.defaultServerURL)\nFor iOS Simulator use your Mac's IP.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if llmMode == .openAI {
+                    Section("OpenAI API Key") {
+                        SecureField("sk-…", text: $openAIKeyEntry)
+                            .autocapitalization(.none)
+                        Picker("Model", selection: $openAIModel) {
+                            Text("GPT-4o Mini  (fast · low cost)").tag("gpt-4o-mini")
+                            Text("GPT-4o  (best quality)").tag("gpt-4o")
+                            Text("GPT-3.5 Turbo  (legacy)").tag("gpt-3.5-turbo")
+                        }
+                        Button(apiKeySaved ? "Key Saved ✓" : "Save Key") {
+                            saveOpenAIKey()
+                        }
+                        .disabled(openAIKeyEntry.isEmpty)
+                        if !openAIKeyEntry.isEmpty {
+                            Button("Remove Key", role: .destructive) {
+                                removeOpenAIKey()
+                            }
+                        }
+                    }
+                }
+
+                if llmMode == .localLLM {
+                    Section("Local Model") {
+                        let models = LocalModel.downloaded
+                        if models.isEmpty {
+                            Text("No models found. Copy a .gguf file (e.g. Llama 3.2 1B, Phi-3 Mini) to the app's Documents folder via Files.app.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Picker("Model", selection: $localModelPath) {
+                                ForEach(models) { model in
+                                    Text("\(model.name)  (\(model.sizeString))").tag(model.url.path)
+                                }
+                            }
+                        }
+                        Text("llama.cpp integration required — see LLMProvider.swift for setup instructions.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 Section("Sync Settings") {
@@ -459,7 +524,25 @@ struct SettingsView: View {
             .sheet(isPresented: $showEmailList) {
                 EmailListView()
             }
+            .onAppear {
+                openAIKeyEntry = (try? KeychainService.shared.retrieveAPIKey(for: "openai")) ?? ""
+                apiKeySaved = !openAIKeyEntry.isEmpty
+            }
         }
+    }
+
+    // MARK: - Keychain Helpers
+
+    private func saveOpenAIKey() {
+        guard !openAIKeyEntry.isEmpty else { return }
+        try? KeychainService.shared.saveAPIKey(openAIKeyEntry, for: "openai")
+        apiKeySaved = true
+    }
+
+    private func removeOpenAIKey() {
+        try? KeychainService.shared.deleteAPIKey(for: "openai")
+        openAIKeyEntry = ""
+        apiKeySaved = false
     }
 }
 
