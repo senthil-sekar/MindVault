@@ -1,29 +1,32 @@
 # MindVault 🧠
 
-A personal AI-powered journal assistant that remembers everything about you. Write journal entries, record your skills, education, and experiences, and let your AI assistant answer questions about your life.
+A personal AI-powered journal assistant that remembers everything about you. Write journal entries, record your skills, education, and experiences, and let your AI assistant answer questions about your life — entirely on your phone.
 
 ## Features
 
 - 📝 **Personal Journal**: Write daily entries with categories, tags, and mood tracking
 - 👤 **Profile Builder**: Record your skills, education, work experience, certifications, and more
 - 🤖 **AI Chat**: Ask questions about your life, and get answers based on your journal
-- 🎤 **Voice Support**: Speak your thoughts and have AI responses read aloud
+- 🎤 **Voice Support**: Speak your thoughts and have AI responses read aloud — dictation is always on-device, in both AI modes
 - 📧 **Email Integration**: Connect Gmail, sync messages, and ask the AI about them in Chat (configurable in-app)
-- 🔍 **RAG-Powered**: Uses Retrieval-Augmented Generation for accurate, contextual responses
-- 🔒 **Privacy-Focused**: Your data stays on your infrastructure
-- 🦙 **Ollama Support**: Run AI models 100% locally - no API keys needed!
-- 📱 **On-Device Mode**: Run the whole pipeline on the iPhone itself — no Mac, no server, no network
+- 🔍 **RAG-Powered**: Retrieval-Augmented Generation — on-device embedding and vector search surface relevant context before the model answers
+- 🔒 **Privacy by design**: No self-hosted backend, no server MindVault operates. Retrieval always runs on your phone; the only thing that ever leaves it is your question, and only if you choose BYOK
+- 📱 **Runs standalone**: No Mac, no Docker, no server — the whole pipeline fits on the iPhone itself
 
 ## AI Modes
 
-Pick a mode in **Profile → Settings → AI Mode**. Each one changes where embedding,
-search, and generation actually run:
+Pick a mode in **Profile → Settings → AI Mode**. There is no self-hosted backend and never
+will be — MindVault doesn't host infrastructure for you. Retrieval (embedding + vector search)
+always happens on-device in both modes; only generation differs:
 
-| Mode | Retrieval | Generation | Needs a server? | Privacy |
-|---|---|---|---|---|
-| **AI Backend (Ollama)** | Backend + Qdrant | Ollama on your Mac | Yes — Mac on the same network | Local network |
-| **OpenAI (BYOK)** | Backend + Qdrant | OpenAI API, called directly from the phone | Yes, for search | Prompts go to OpenAI |
-| **On-Device** | `NLEmbedding` + on-device vector store | MLX running on the iPhone | **No** | Never leaves the device |
+| Mode | Retrieval | Generation | Leaves the device? |
+|---|---|---|---|
+| **On-Device** | `NLEmbedding` + `LocalVectorStore`, on-device | MLX running on the iPhone's GPU | **Never** |
+| **OpenAI (BYOK)** | `NLEmbedding` + `LocalVectorStore`, on-device | OpenAI API, called directly from the phone with your key | Only your question + retrieved context, to OpenAI |
+
+BYOK exists for people who want faster or more capable responses and are comfortable trading
+some privacy for it — that's a choice you make per-query-session, not something the app decides
+for you.
 
 ### On-Device mode
 
@@ -66,8 +69,8 @@ device'`. That's a platform limitation, not a bug in this code. Options:
 - Run on a physical iPhone (A17 Pro or newer for good performance)
 - Add the **"Mac (Designed for iPad)"** destination in Xcode and run there instead —
   Apple Silicon Macs have a full Metal GPU
-- UI and non-MLX features (Backend/BYOK modes, journal, everything else) work fine in
-  the Simulator as always; only `MLXArray` evaluation needs real Apple Silicon
+- Everything else (journal, profile, BYOK mode, retrieval) works fine in the Simulator
+  as always; only MLX generation needs real Apple Silicon
 
 **Memory:** iOS kills apps that use too much RAM ([jetsam](https://developer.apple.com/documentation/xcode/identifying-high-memory-use-with-jetsam-event-reports)).
 The larger catalog models (Gemma 3 4B, Mistral 7B) may need the
@@ -81,107 +84,55 @@ or newer device is recommended — inference runs on the GPU via Metal. Until bo
 are linked, the app builds and runs normally and On-Device mode reports that generation
 isn't available yet; retrieval and embedding already work without it.
 
-> Google Drive documents: On-Device mode indexes PDFs, Google Docs, and text files
-> using PDFKit. `.docx` / `.pptx` still need the backend's parsers.
+> Google Drive documents: MindVault indexes PDFs, Google Docs, and text files on-device using
+> PDFKit. `.docx` / `.pptx` aren't supported — there's no backend to parse them.
 
 ## Architecture
 
 ```mermaid
 graph TB
-    subgraph iOS["iOS App - SwiftUI + SwiftData"]
-        UI["User Interface"]
-        Journal["📝 Journal View<br/>• Categories<br/>• Tags<br/>• Moods"]
-        Chat["💬 Chat View<br/>• RAG Chat<br/>• Context<br/>• History"]
-        Profile["👤 Profile View<br/>• Skills<br/>• Education<br/>• Experience"]
-        Email["📧 Email View<br/>• Gmail Sync<br/>• Processing<br/>• AI Context"]
-        
-        UI --> Journal
-        UI --> Chat
-        UI --> Profile
-        UI --> Email
-        
-        subgraph Services["Services Layer"]
-            RAGService["RAGService"]
-            APIClient["APIClient"]
-            EmailService["EmailService"]
-            SwiftData["SwiftData Models"]
+    subgraph iOS["MindVault — iOS App (SwiftUI + SwiftData)"]
+        UI["User Interface<br/>Journal • Chat • Profile • Email • Drive"]
+
+        subgraph Retrieval["On-Device Retrieval — always, both AI modes"]
+            Embed["EmbeddingService<br/>NLEmbedding, on-device"]
+            Store["LocalVectorStore<br/>JSON + vDSP cosine similarity"]
         end
-        
-        Journal --> RAGService
-        Chat --> RAGService
-        Profile --> RAGService
-        Email --> EmailService
-        
-        RAGService --> APIClient
-        EmailService --> APIClient
-        APIClient --> SwiftData
-    end
-    
-    APIClient -->|"HTTP/JSON<br/>localhost:8000"| Backend
-    
-    subgraph Backend["FastAPI Backend - Python"]
-        FastAPI["FastAPI Server"]
-        
-        subgraph Endpoints["API Endpoints"]
-            Health["/health"]
-            Embed["/api/embed"]
-            Upsert["/api/upsert"]
-            UpsertEmail["/api/upsert/email"]
-            UpsertDoc["/api/upsert/document"]
-            Delete["/api/delete"]
-            Search["/api/search"]
-            ChatAPI["/api/chat"]
-            Stats["/api/stats"]
+
+        subgraph Generation["Generation — chosen in Settings → AI Mode"]
+            MLX["MLX<br/>on-device LLM (GPU)"]
+            OpenAIProvider["OpenAIDirectProvider<br/>BYOK"]
         end
-        
-        FastAPI --> Health
-        FastAPI --> Embed
-        FastAPI --> Upsert
-        FastAPI --> UpsertEmail
-        FastAPI --> UpsertDoc
-        FastAPI --> Delete
-        FastAPI --> Search
-        FastAPI --> ChatAPI
-        FastAPI --> Stats
-        
-        subgraph RAGPipeline["RAG Pipeline"]
-            RAGSvc["RAG Service"]
-            EmbedSvc["Embedding Service"]
-            VectorSvc["Vector DB Service"]
-            LLMSvc["LLM Service"]
-            
-            RAGSvc --> EmbedSvc
-            RAGSvc --> VectorSvc
-            RAGSvc --> LLMSvc
-        end
-        
-        Embed --> EmbedSvc
-        Upsert --> RAGSvc
-        UpsertEmail --> RAGSvc
-        UpsertDoc --> RAGSvc
-        Delete --> RAGSvc
-        Search --> RAGSvc
-        ChatAPI --> RAGSvc
+
+        SwiftData["SwiftData<br/>journal, profile, email, accounts"]
+
+        UI --> SwiftData
+        UI --> Embed
+        Embed --> Store
+        Store --> MLX
+        Store --> OpenAIProvider
     end
-    
-    subgraph External["External Services"]
-        Ollama["🦙 Ollama<br/>• Local LLM<br/>• llama3.2:3b<br/>• Free & Private"]
-        Qdrant["🔍 Qdrant Vector DB<br/>• 384 dimensions<br/>• Cosine similarity<br/>• Metadata filtering"]
-        Gmail["📧 Gmail API<br/>• OAuth 2.0<br/>• Email Sync<br/>• Auto-process"]
+
+    subgraph CloudOptional["Cloud — only when you opt in"]
+        OpenAIAPI["api.openai.com<br/>(BYOK mode only)"]
+        Gmail["Gmail API<br/>(OAuth, read-only)"]
+        Drive["Google Drive API<br/>(OAuth, read-only)"]
     end
-    
-    LLMSvc --> Ollama
-    EmbedSvc --> Qdrant
-    VectorSvc --> Qdrant
-    EmailService -.->|"OAuth"| Gmail
-    
+
+    OpenAIProvider -.->|"HTTPS, your API key"| OpenAIAPI
+    UI -.->|"optional"| Gmail
+    UI -.->|"optional"| Drive
+
     style iOS fill:#e1f5ff,stroke:#01579b,stroke-width:3px
-    style Backend fill:#f3e5f5,stroke:#4a148c,stroke-width:3px
-    style External fill:#fff3e0,stroke:#e65100,stroke-width:3px
-    style Ollama fill:#90ee90,stroke:#006400,stroke-width:2px
-    style Qdrant fill:#ffd700,stroke:#ff8c00,stroke-width:2px
-    style Gmail fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px
+    style Retrieval fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style Generation fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style CloudOptional fill:#fff3e0,stroke:#e65100,stroke-width:2px
 ```
+
+There is no backend and no server MindVault hosts for you. Everything under "iOS App" runs
+inside the app process on the phone. The only network calls the app ever makes are: (1) OpenAI's
+API, only in BYOK mode, only with your own key; (2) Hugging Face, only when you tap Download on a
+model in Browse Models; (3) Google OAuth/Gmail/Drive, only if you connect those integrations.
 
 ### RAG Pipeline Flow
 
@@ -189,28 +140,24 @@ graph TB
 sequenceDiagram
     participant User
     participant iOS as iOS App
-    participant API as FastAPI
-    participant Embed as Embedding Service
-    participant VectorDB as Qdrant
-    participant LLM as Ollama
-    
-    Note over User,LLM: 1. Indexing Flow
+    participant Embed as NLEmbedding
+    participant Store as LocalVectorStore
+    participant Gen as MLX or OpenAI
+
+    Note over User,Gen: 1. Indexing (journal entry, email, or document)
     User->>iOS: Write Journal Entry
-    iOS->>API: POST /api/upsert
-    API->>Embed: Generate Embedding
-    Embed->>VectorDB: Store Vector + Metadata
-    VectorDB-->>API: Success
-    API-->>iOS: Indexed
-    
-    Note over User,LLM: 2. Query Flow
+    iOS->>Embed: Generate Embedding (on-device)
+    Embed->>Store: Store Vector + Metadata
+    Store-->>iOS: Indexed
+
+    Note over User,Gen: 2. Query
     User->>iOS: Ask Question
-    iOS->>API: POST /api/chat
-    API->>Embed: Generate Query Embedding
-    Embed->>VectorDB: Search Similar Vectors
-    VectorDB-->>API: Top K Results (with context)
-    API->>LLM: Prompt + Context
-    LLM-->>API: Generated Response
-    API-->>iOS: Response + Sources
+    iOS->>Embed: Generate Query Embedding (on-device)
+    Embed->>Store: Cosine Similarity Search
+    Store-->>iOS: Top-K Results (with context)
+    iOS->>Gen: Prompt + Context
+    Note right of Gen: MLX — on-device GPU.<br/>OpenAI — HTTPS to api.openai.com, BYOK mode only.
+    Gen-->>iOS: Generated Response
     iOS-->>User: Display Answer
 ```
 
@@ -222,50 +169,47 @@ flowchart LR
         J[Journal Entry]
         P[Profile Item]
         E[Email Message]
+        D[Drive Document]
         Q[User Query]
     end
-    
-    subgraph Processing["⚙️ Processing"]
-        T[Text Processing]
-        V[Vectorization<br/>384-dim]
-        M[Metadata<br/>Extraction]
+
+    subgraph Processing["⚙️ On-Device Processing"]
+        T[Text Cleaning /<br/>Chunking]
+        V["NLEmbedding<br/>~512-dim"]
     end
-    
-    subgraph Storage["💾 Storage"]
-        SD[SwiftData<br/>Local DB]
-        QD[Qdrant<br/>Vector DB]
+
+    subgraph Storage["💾 On-Device Storage"]
+        SD["SwiftData<br/>journal, profile, email, accounts"]
+        LVS["LocalVectorStore<br/>JSON + vDSP"]
     end
-    
+
     subgraph Retrieval["🔍 Retrieval"]
-        S[Semantic Search]
-        F[Metadata Filtering]
-        R[Ranking & Scoring]
+        S[Cosine Similarity Search]
+        R[Top-K Ranking]
     end
-    
+
     subgraph Generation["🤖 Generation"]
         C[Context Building]
-        L[LLM Prompting]
-        A[Answer Generation]
+        L["MLX (on-device) or<br/>OpenAI API (BYOK)"]
+        A[Answer]
     end
-    
+
     J --> T
     P --> T
     E --> T
+    D --> T
     T --> V
-    T --> M
-    V --> QD
-    M --> QD
+    V --> LVS
     T --> SD
-    
+
     Q --> V
     V --> S
-    S --> QD
-    QD --> F
-    F --> R
+    S --> LVS
+    LVS --> R
     R --> C
     C --> L
     L --> A
-    
+
     style Input fill:#e3f2fd,stroke:#1565c0
     style Processing fill:#f3e5f5,stroke:#6a1b9a
     style Storage fill:#fff3e0,stroke:#ef6c00
@@ -275,74 +219,39 @@ flowchart LR
 
 ## Prerequisites
 
-- **iOS Development**: Xcode 15+, iOS 17+ (Xcode 26+ only if you want On-Device generation)
-- **Backend** — *not needed if you only use On-Device mode*:
-  - Python 3.9+
-  - **Ollama** (local LLM) - 100% free, runs locally
-  - Qdrant (vector database) - runs via Docker
+- **Xcode 15+**, iOS 17+ deployment target
+- **Xcode 26+** and a physical iPhone (A17 Pro+ recommended) if you want On-Device generation —
+  see [On-Device mode](#on-device-mode) for why
+- Nothing else. No Python, no Docker, no server to run — the app builds and runs standalone
 
 ## Quick Start
 
-The steps below set up **AI Backend** mode (Ollama + a local server), the default. If you only
-want **On-Device** mode — no Mac, no server, ever — skip straight to its
-[one-time Xcode setup](#on-device-mode) instead; none of steps 0–2 apply. If you only want
-**OpenAI (BYOK)**, skip step 0 (no Ollama needed) but still do steps 1–2 (the backend handles
-retrieval for that mode too).
-
-### 0. Setup Ollama (Backend mode only)
-
 ```bash
-# Install Ollama
-brew install ollama
-
-# Start Ollama service (in a terminal)
-ollama serve
-
-# Pull a model (in another terminal)
-ollama pull llama3.2:3b  # Fast & good quality
-```
-
-💡 **Tip:** In Backend mode, everything runs locally — no API keys anywhere in the stack.
-
-### 1. Start the Backend
-
-```bash
-# Clone and navigate to the project
+git clone <repo-url>
 cd MindVault
-
-# Copy environment file
-cp backend/.env.example backend/.env
-
-# The defaults already point at local Qdrant and Ollama — no changes needed
-
-# Start services with Docker
-docker-compose up -d
+open MindVault.xcodeproj
 ```
 
-### 2. Verify Backend is Running
+Then in Xcode: select a device or simulator, and build & run (⌘R).
 
+**First launch:** the app defaults to **On-Device** mode. Go to **Profile → Settings → AI Mode
+→ Browse Models** to download a model (Llama 3.2 3B is the recommended default) — see
+[On-Device mode](#on-device-mode) above for the one-time Xcode package setup that enables
+generation. Prefer **OpenAI (BYOK)** instead? Switch AI Mode and paste your API key; no
+Xcode setup needed for that path.
+
+**Optional — Gmail/Drive integration:**
 ```bash
-# Check health
-curl http://localhost:8000/health
-
-# Expected response:
-# {"status":"ok","vector_db_status":"connected","embeddings_ready":true}
+cp Config.local.xcconfig.example Config.local.xcconfig
+# then set GOOGLE_OAUTH_CLIENT_ID_PREFIX — see docs/ENABLING_EMAIL_FEATURES.md
 ```
-
-### 3. Run the iOS App
-
-1. For Gmail/Drive sign-in, `cp Config.local.xcconfig.example Config.local.xcconfig` and set your
-   Google OAuth iOS client ID (see [docs/EMAIL_CONFIGURATION_GUIDE.md](docs/EMAIL_CONFIGURATION_GUIDE.md)).
-   Skip this and the app runs fine with those integrations disabled.
-2. Open `MindVault.xcodeproj` in Xcode
-3. Select your target device/simulator
-4. Build and run (⌘R)
+Skip this and the app runs fine with those integrations disabled.
 
 ## Project Structure
 
 ```
 MindVault/
-├── MindVault/                    # iOS App
+├── MindVault/                    # iOS App — this is the whole product
 │   ├── MindVaultApp.swift        # App entry point
 │   ├── ContentView.swift         # Main content view
 │   ├── Models/                   # SwiftData models
@@ -355,56 +264,23 @@ MindVault/
 │   │   └── Profile/
 │   │       ├── ProfileView.swift        # Includes SettingsView (AI Mode)
 │   │       └── ModelBrowserView.swift   # Download/select on-device models
-│   ├── Services/                 # AI/RAG services
-│   │   ├── EmbeddingService.swift       # Backend or on-device (NLEmbedding)
-│   │   ├── VectorDBService.swift        # Routes to Qdrant or LocalVectorStore
+│   ├── Services/
+│   │   ├── EmbeddingService.swift       # On-device embeddings (NLEmbedding)
+│   │   ├── VectorDBService.swift        # Wraps LocalVectorStore: embed + upsert/search
 │   │   ├── LocalVectorStore.swift       # On-device vectors + vDSP search
-│   │   ├── LLMProvider.swift            # Backend / OpenAI / MLX providers
-│   │   ├── ModelCatalog.swift           # Model catalog + HF downloader
-│   │   ├── LLMService.swift
-│   │   └── RAGService.swift
+│   │   ├── LLMProvider.swift            # OpenAI (BYOK) / MLX (on-device) providers
+│   │   ├── ModelCatalog.swift           # Model catalog + Hugging Face downloader
+│   │   ├── LLMService.swift             # Resolves the active provider from AI Mode
+│   │   └── RAGService.swift             # Retrieval + generation orchestration
 │   └── Utilities/
-│       ├── APIClient.swift
 │       └── Configuration.swift
 │
-├── backend/                      # Python FastAPI Backend
-│   ├── app/
-│   │   ├── main.py              # FastAPI app
-│   │   ├── config.py            # Configuration
-│   │   ├── models.py            # Pydantic models
-│   │   └── services/
-│   │       ├── embedding.py     # Local sentence-transformers embeddings
-│   │       ├── vector_db.py     # Qdrant operations
-│   │       ├── llm.py           # Chat completion
-│   │       ├── rag.py           # RAG search + synthesis (serves every /api/chat call)
-│   │       ├── email_processor.py   # HTML cleaning, chunking for /api/upsert/email
-│   │       └── document_processor.py # PDF/DOCX text extraction
-│   ├── requirements.txt
-│   ├── Dockerfile
-│   └── .env.example
-│
-├── mcp-server/                   # Standalone MCP server (Google Drive tools)
-│   └── src/index.ts              # Not used by the iOS app or backend — DriveService.swift
-│                                  # talks to Google Drive directly. This exposes the same
-│                                  # capability as MCP tools for use from an MCP client
-│                                  # (e.g. Claude Desktop) instead.
-│
-└── docker-compose.yml            # Docker setup
+└── mcp-server/                   # Standalone MCP server (Google Drive tools)
+    └── src/index.ts              # Not used by the iOS app — DriveService.swift talks to
+                                   # Google Drive directly. This exposes the same capability
+                                   # as MCP tools for use from an MCP client (e.g. Claude
+                                   # Desktop) instead.
 ```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/api/embed` | POST | Generate text embedding |
-| `/api/upsert` | POST | Add/update document in vector DB |
-| `/api/upsert/email` | POST | Add/update an email (HTML cleaning, signature stripping, thread-aware chunking) |
-| `/api/upsert/document` | POST | Add/update a document (PDF/DOCX text extraction) |
-| `/api/delete` | DELETE | Remove a document (and any chunks) from vector DB |
-| `/api/search` | POST | Search for similar documents |
-| `/api/chat` | POST | Generate AI response with RAG |
-| `/api/stats` | GET | Get collection statistics |
 
 ## Configuration
 
@@ -412,17 +288,16 @@ MindVault/
 
 Navigate to Profile → Settings in the app to configure:
 
-- **AI Mode**: Backend / OpenAI (BYOK) / On-Device — see [AI Modes](#ai-modes) above
-- **Server URL**: Backend API URL (shown in Backend mode; default: `http://localhost:8000`)
+- **AI Mode**: On-Device / OpenAI (BYOK) — see [AI Modes](#ai-modes) above
 - **OpenAI API Key**: Stored in the iOS Keychain, never in UserDefaults (BYOK mode)
 - **Browse Models**: Download and select on-device MLX models (On-Device mode)
 - **Auto-sync**: Automatically sync new entries to AI
 - **Sync All Now / Clear AI Data**: Re-index or wipe the search index (journal entries themselves are untouched)
 - **Email Accounts**: Connect Gmail with one tap
   - Users just click "Connect Gmail Account" and authorize
-  - Emails are automatically synced and processed for RAG context
+  - Emails are automatically synced and indexed on-device for Chat context
   - No manual configuration needed by users
-  
+
 **Developer Setup (One-time):**
 The Google OAuth client ID is a build setting, not something hardcoded in source — see
 [docs/ENABLING_EMAIL_FEATURES.md](docs/ENABLING_EMAIL_FEATURES.md) for the 5-minute version, or
@@ -432,35 +307,6 @@ The Google OAuth client ID is a build setting, not something hardcoded in source
 2. `cp Config.local.xcconfig.example Config.local.xcconfig` and set `GOOGLE_OAUTH_CLIENT_ID`
    there (gitignored — never committed)
 3. Users can then connect their Gmail accounts seamlessly, no source changes needed
-
-### Backend Environment Variables
-
-See [`backend/.env.example`](backend/.env.example) for a copy-paste starting point.
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `QDRANT_HOST` | Qdrant host | `localhost` |
-| `QDRANT_PORT` | Qdrant port | `6333` |
-| `QDRANT_COLLECTION` | Qdrant collection name | `mindvault` |
-| `QDRANT_URL` | Qdrant Cloud URL (optional) | Unset |
-| `QDRANT_API_KEY` | Qdrant Cloud API key (optional) | Unset |
-| `HOST` | Bind address | `0.0.0.0` |
-| `PORT` | Bind port | `8000` |
-| `DEBUG` | Enable uvicorn reload | `true` |
-| `EMBEDDING_MODEL` | Local sentence-transformers model | `all-MiniLM-L6-v2` |
-| `EMBEDDING_DIMENSION` | Embedding size (must match the model) | `384` |
-| `OLLAMA_URL` | Ollama API endpoint | `http://localhost:11434` |
-| `LLM_MODEL` | Ollama model to use | `llama3.2` |
-| `LLM_MAX_TOKENS` | Max tokens per response | `2000` |
-| `LLM_TEMPERATURE` | Sampling temperature | `0.7` |
-| `RAG_TOP_K` | Documents retrieved per query | `5` |
-| `RAG_MIN_SCORE` | Minimum similarity score | `0.1` |
-
-> The **backend** is Ollama-only — no OpenAI code path, no API key read here. OpenAI is only
-> ever called from the iOS app directly, in **OpenAI (BYOK)** mode (see [AI Modes](#ai-modes)) —
-> the backend and this variable table are unaffected by that mode.
-
-💡 **See `OLLAMA_SETUP.md` for complete Ollama setup and model selection guide**
 
 ## Usage Examples
 
@@ -492,33 +338,9 @@ Add comprehensive profile items:
 
 ## Development
 
-### Running Backend Locally (without Docker)
-
-```bash
-cd backend
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run Qdrant separately
-docker run -p 6333:6333 qdrant/qdrant
-
-# Start the server
-uvicorn app.main:app --reload
-```
-
 ### Running Tests
 
 ```bash
-# Backend tests and lint (no Qdrant or Ollama needed - both are mocked)
-pip install -r backend/requirements-dev.txt
-./dev.sh test
-./dev.sh lint
-
 # iOS: no test target exists yet (MindVault.xcodeproj has a single
 # PBXNativeTarget, the app itself). Verify iOS changes by building and
 # running in Xcode.
@@ -526,8 +348,8 @@ pip install -r backend/requirements-dev.txt
 
 ### Running the MCP Server
 
-Optional — the iOS app and backend don't use this; it exposes the same Google Drive
-capability as `DriveService.swift` for use from an MCP client instead.
+Optional — the iOS app doesn't use this; it exposes the same Google Drive capability as
+`DriveService.swift` for use from an MCP client instead.
 
 ```bash
 cd mcp-server
@@ -538,34 +360,31 @@ npm start        # or: npm run dev  (tsx watch)
 
 ## Privacy & Security
 
-- All data is stored locally on your device and your self-hosted backend
-- You control your Qdrant instance and all stored embeddings
+- No self-hosted backend, no server MindVault operates — there's nothing to trust beyond
+  the app itself, Apple's frameworks, and whichever cloud API you explicitly opt into
 - API keys are stored securely in iOS Keychain and never logged
 - Email OAuth tokens are hardware-encrypted in Keychain
-- Dictation uses on-device speech recognition when the device supports it; in
-  On-Device mode it refuses to fall back to Apple's servers rather than
-  silently uploading audio
+- Dictation always uses on-device speech recognition, in both AI modes — MindVault refuses
+  to fall back to Apple's servers rather than silently uploading audio
 
 What leaves the device depends on the AI mode:
 
 - **On-Device** — nothing. Embedding, search, and generation all run on the phone.
-- **AI Backend** — entries go to your own machine on your own network; nothing to third parties.
-- **OpenAI (BYOK)** — retrieved context and your question are sent to OpenAI to
-  generate each answer. Everything else stays on your infrastructure.
+- **OpenAI (BYOK)** — your question and the retrieved context are sent to OpenAI to generate
+  each answer. Retrieval itself (embedding, search) still runs on-device — only that one
+  generation call leaves the phone, and only because you chose BYOK.
 
 ## Documentation
 
 For detailed guides, see the `docs/` folder:
 
 - **[QUICK_START.md](QUICK_START.md)** - Quick reference for common tasks and troubleshooting
-- **[OLLAMA_SETUP.md](docs/OLLAMA_SETUP.md)** - Complete Ollama installation, model selection, and configuration
 - **[EMAIL_CONFIGURATION_GUIDE.md](docs/EMAIL_CONFIGURATION_GUIDE.md)** - Step-by-step Gmail integration setup
 - **[ENABLING_EMAIL_FEATURES.md](docs/ENABLING_EMAIL_FEATURES.md)** - How to enable email features (5 minutes)
 
 ## Roadmap
 
 ### Completed ✅
-- [x] Local LLM support (Ollama with Llama models)
 - [x] Voice input and output (Speech-to-text & Text-to-speech)
 - [x] Email integration (Gmail OAuth, in-app configuration)
 - [x] Secure credential storage (iOS Keychain)
@@ -573,6 +392,7 @@ For detailed guides, see the `docs/` folder:
 - [x] On-device embeddings (`NLEmbedding`)
 - [x] On-device vector store (vDSP cosine similarity)
 - [x] On-device LLM generation (MLX) with in-app model downloads
+- [x] Fully standalone — no backend, no server, no Mac required
 
 ### Coming Soon
 - [ ] iCloud sync for journal entries
@@ -594,4 +414,4 @@ Contributions are welcome! Please read our contributing guidelines and submit pu
 
 ---
 
-Built with ❤️ using SwiftUI, FastAPI, Qdrant, Ollama, and MLX
+Built with ❤️ using SwiftUI, SwiftData, and MLX

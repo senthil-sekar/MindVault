@@ -86,11 +86,12 @@ buttons stay disabled instead of failing mid-flow.
 6. **Sync** — `syncEmails` pulls message IDs, fetches details, parses the MIME payload, strips HTML,
    and stores `EmailMessage` rows; messages deleted in Gmail are removed locally and from the
    vector DB.
-7. **Indexing** — each message is posted to `POST /api/upsert/email`, where the backend strips
-   signatures and disclaimers, chunks thread-aware with a `Subject`/`Date` header per chunk, and
-   upserts embeddings with metadata (`sender`, `subject`, `thread_id`, `labels`, `date`).
-8. **Retrieval** — chat queries run a semantic vector search across the whole collection (no
-   type filter); embedding similarity is what surfaces email content for mail-related questions.
+7. **Indexing** — each message is embedded on-device (`EmbeddingService`, `NLEmbedding`) and
+   upserted into `LocalVectorStore` via `VectorDBService`, with metadata (`from`, `subject`,
+   `thread_id`, `labels`, `date`). No backend involved — this happens entirely on the phone.
+8. **Retrieval** — chat queries embed on-device and run a cosine-similarity search across the
+   whole `LocalVectorStore` (no type filter); embedding similarity is what surfaces email
+   content for mail-related questions.
 
 ## Reference
 
@@ -102,7 +103,7 @@ buttons stay disabled instead of failing mid-flow.
 | Scopes | `EmailService.gmailScope`, `DriveService.scope` |
 | Sync interval | `EmailService.autoSyncInterval` (5 minutes) |
 | Messages per sync | `syncEmails(for:limit:)`, default 50 |
-| Backend endpoint | `POST /api/upsert/email` |
+| Indexing | On-device: `VectorDBService.upsert` → `LocalVectorStore` (no backend) |
 
 ## Troubleshooting
 
@@ -115,11 +116,12 @@ buttons stay disabled instead of failing mid-flow.
 | `access_denied` / "app not verified" | Account missing from the consent screen's **Test users** |
 | `insufficientPermissions` on sync | Gmail API not enabled, or the scope was declined |
 | Auth stops working after a week | Testing-mode refresh tokens expire after 7 days — reconnect, or publish the consent screen |
-| Emails sync but Chat can't see them | Backend down or wrong Server URL — `curl http://localhost:8000/health` and check `/api/stats` |
+| Emails sync but Chat can't see them | Run **Settings → Sync All Now** to (re-)index; there's no backend to be "down" |
 
 ## Privacy
 
-Read-only scope; tokens live in the Keychain; message bodies and embeddings live on your device and
-your self-hosted backend. Disconnecting an account deletes its Keychain tokens but leaves already
-indexed messages in SwiftData and in the vector DB — use **Clear all emails and resync** (or
-`docker-compose down -v`) to purge those.
+Read-only scope; tokens live in the Keychain; message bodies and embeddings live entirely on your
+device, in `LocalVectorStore` — there is no backend and nothing is sent anywhere except the
+Google OAuth/Gmail calls themselves. Disconnecting an account deletes its Keychain tokens but
+leaves already indexed messages in SwiftData and in `LocalVectorStore` — use **Clear all emails
+and resync**, or **Settings → Clear AI Data**, to purge those.

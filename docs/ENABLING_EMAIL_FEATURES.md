@@ -43,13 +43,13 @@ both schemes are registered in `MindVault/Info.plist`.
 ## Using it
 
 - The **Email** tab lists synced messages; pull to refresh or use the sync button.
-- Sync fetches up to 50 messages by default, strips HTML, and posts each one to
-  `POST /api/upsert/email` so the backend can chunk and index it.
+- Sync fetches up to 50 messages by default, strips HTML, and indexes each one on-device
+  (`EmbeddingService` + `LocalVectorStore`, via `VectorDBService`) — no backend involved.
 - Auto-sync polls every 5 minutes while the app is running; toggle it in Settings.
 - Once indexed, emails are answerable in **Chat** ("what did Alice email me about the invoice?") —
-  the backend runs a semantic vector search across the whole collection and surfaces whatever's
-  most relevant, email included.
-- Messages deleted in Gmail are dropped locally and from the vector DB on the next sync.
+  the app embeds your question on-device and runs a cosine-similarity search across
+  `LocalVectorStore`, surfacing whatever's most relevant, email included.
+- Messages deleted in Gmail are dropped locally and from `LocalVectorStore` on the next sync.
 - Disconnecting an account deletes its Keychain tokens; already indexed messages stay until you
   clear and resync.
 
@@ -59,9 +59,11 @@ both schemes are registered in `MindVault/Info.plist`.
 |------|----------|
 | Access / refresh / ID tokens | iOS Keychain (`EmailAccount.saveTokens`) |
 | Account + message records | SwiftData, on device |
-| Cleaned email text + embeddings | Your Qdrant instance, via the backend |
+| Cleaned email text + embeddings | `LocalVectorStore`, on device |
 
-Nothing goes to a third party: the LLM is local Ollama and the vector DB is yours.
+Nothing goes to a third party for indexing or search — there's no backend. Generation is
+on-device too (MLX) unless you've chosen **OpenAI (BYOK)** mode, in which case your question and
+retrieved context (which may include email content) go to OpenAI to produce that one answer.
 
 ## If it doesn't work
 
@@ -71,4 +73,4 @@ Nothing goes to a third party: the LLM is local Ollama and the vector DB is your
 | Browser sheet shows `redirect_uri_mismatch` | The client ID isn't an **iOS** client, or the bundle ID doesn't match `com.mindvault.app` |
 | "Access blocked: app not verified" | Your account isn't in the consent screen's **Test users** |
 | Auth succeeds, no messages | Gmail API not enabled on the project |
-| Messages sync but Chat can't see them | Backend unreachable — check `curl http://localhost:8000/health` and the Server URL in Settings |
+| Messages sync but Chat can't see them | Run **Settings → Sync All Now** to (re-)index |

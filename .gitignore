@@ -64,22 +64,9 @@ fastlane/test_output
 # macOS
 .DS_Store
 
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-# Python test/lint caches
-.pytest_cache/
-.ruff_cache/
-
 # Node
 node_modules/
 mcp-server/dist/
-
-# Local env files
-.env
-!.env.example
 
 # Local Xcode config overrides
 Config.local.xcconfig
