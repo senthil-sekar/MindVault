@@ -7,7 +7,6 @@ import logging
 import base64
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -118,7 +117,7 @@ async def generate_embedding(request: EmbedRequest):
         return EmbedResponse(embedding=embedding)
     except Exception as e:
         logger.error(f"Embedding error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────
@@ -137,7 +136,7 @@ async def upsert_document(request: UpsertRequest):
         return {"status": "success", "id": request.id}
     except Exception as e:
         logger.error(f"Upsert error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/upsert/email")
@@ -161,7 +160,7 @@ async def upsert_email(request: EmailUpsertRequest):
         return {"status": "success", "id": request.id}
     except Exception as e:
         logger.error(f"Email upsert error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/upsert/document")
@@ -180,7 +179,7 @@ async def upsert_drive_document(request: DocumentUpsertRequest):
         try:
             file_bytes = base64.b64decode(request.content_base64)
         except Exception:
-            raise HTTPException(status_code=400, detail="Invalid base64 content")
+            raise HTTPException(status_code=400, detail="Invalid base64 content") from None
 
         # Process document into chunks
         chunks = document_processor.process_document(
@@ -217,7 +216,7 @@ async def upsert_drive_document(request: DocumentUpsertRequest):
         raise
     except Exception as e:
         logger.error(f"Document upsert error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────
@@ -232,7 +231,7 @@ async def delete_document(request: DeleteRequest):
         return {"status": "success", "id": request.id}
     except Exception as e:
         logger.error(f"Delete error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────
@@ -251,7 +250,7 @@ async def search_documents(request: SearchRequest):
         return SearchResponse(results=results)
     except Exception as e:
         logger.error(f"Search error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────
@@ -283,7 +282,7 @@ async def chat(request: ChatRequest):
             return ChatResponse(response=response, contexts=contexts)
         except Exception as fallback_error:
             logger.error(f"Fallback chat error: {fallback_error}")
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────
@@ -302,7 +301,7 @@ async def get_stats():
         }
     except Exception as e:
         logger.error(f"Stats error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 if __name__ == "__main__":

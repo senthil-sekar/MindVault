@@ -407,9 +407,10 @@ uvicorn app.main:app --reload
 ### Running Tests
 
 ```bash
-# Backend tests
-cd backend
-pytest
+# Backend tests and lint (no Qdrant or Ollama needed - both are mocked)
+pip install -r backend/requirements-dev.txt
+./dev.sh test
+./dev.sh lint
 
 # iOS tests
 xcodebuild test -project MindVault.xcodeproj -scheme MindVault

@@ -272,7 +272,6 @@ class EmailProcessor:
                     continue
             else:
                 quote_count = 0
-                skip_mode = False
             
             if not skip_mode:
                 clean_lines.append(line)

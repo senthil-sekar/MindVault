@@ -10,7 +10,6 @@ Features:
 """
 
 import logging
-import re
 from typing import Optional, Tuple, List, Dict
 from datetime import datetime
 
