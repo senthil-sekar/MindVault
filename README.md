@@ -248,9 +248,12 @@ curl http://localhost:8000/health
 
 ### 3. Run the iOS App
 
-1. Open `MindVault.xcodeproj` in Xcode
-2. Select your target device/simulator
-3. Build and run (⌘R)
+1. For Gmail/Drive sign-in, `cp Config.local.xcconfig.example Config.local.xcconfig` and set your
+   Google OAuth iOS client ID (see [docs/EMAIL_CONFIGURATION_GUIDE.md](docs/EMAIL_CONFIGURATION_GUIDE.md)).
+   Skip this and the app runs fine with those integrations disabled.
+2. Open `MindVault.xcodeproj` in Xcode
+3. Select your target device/simulator
+4. Build and run (⌘R)
 
 ## Project Structure
 

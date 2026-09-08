@@ -73,3 +73,6 @@ venv/
 # Local env files
 .env
 !.env.example
+
+# Local Xcode config overrides
+Config.local.xcconfig

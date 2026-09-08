@@ -54,6 +54,33 @@ enum Configuration {
         return address
     }
     
+    // MARK: - Google OAuth
+    /// Supplied by `Config.xcconfig` (see `Config.local.xcconfig.example`) and surfaced through
+    /// Info.plist. iOS OAuth clients have no client secret — the flow is PKCE — so the client ID
+    /// is a public identifier, but it stays out of source so each developer can point the app at
+    /// their own Google Cloud project.
+    enum GoogleOAuth {
+        /// Empty when unconfigured, e.g. `123-abc.apps.googleusercontent.com`.
+        static let clientID: String = {
+            let value = Bundle.main.object(forInfoDictionaryKey: "GoogleOAuthClientID") as? String ?? ""
+            return value.hasPrefix(".") ? "" : value
+        }()
+
+        /// Reversed client ID, e.g. `com.googleusercontent.apps.123-abc`.
+        static var reversedClientID: String {
+            guard !clientID.isEmpty else { return "" }
+            return "com.googleusercontent.apps." + clientID.replacingOccurrences(
+                of: ".apps.googleusercontent.com", with: ""
+            )
+        }
+
+        /// Gmail uses the bundle-ID scheme, Drive the reversed-client-ID scheme.
+        /// Both are registered in Info.plist.
+        static let appURLScheme = "com.mindvault.app"
+        static let appRedirectURI = "com.mindvault.app:/oauth2redirect"
+        static var driveRedirectURI: String { "\(reversedClientID):/oauth2redirect" }
+    }
+
     // MARK: - API Endpoints
     enum Endpoints {
         static var embedText: String { "\(serverURL)/api/embed" }

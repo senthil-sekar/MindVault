@@ -42,37 +42,34 @@ the repo.
 
 ### Client ID
 
-`MindVault/Services/EmailService.swift`:
+One value, one place:
 
-```swift
-private let gmailClientId = "<NUMBER>-<HASH>.apps.googleusercontent.com"
-private let gmailRedirectURI = "com.mindvault.app:/oauth2redirect"
-private let gmailScope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid"
+```bash
+cp Config.local.xcconfig.example Config.local.xcconfig
 ```
 
-`MindVault/Services/DriveService.swift` holds the equivalent `clientId` for Drive, which uses the
-reversed-client-ID redirect `com.googleusercontent.apps.<NUMBER>-<HASH>:/oauth2redirect`.
-
-### URL schemes
-
-`MindVault/Info.plist` must register the scheme of every redirect URI in use:
-
-```xml
-<key>CFBundleURLTypes</key>
-<array>
-  <dict>
-    <key>CFBundleURLName</key><string>com.mindvault.app</string>
-    <key>CFBundleURLSchemes</key><array><string>com.mindvault.app</string></array>
-  </dict>
-  <dict>
-    <key>CFBundleURLName</key><string>com.googleusercontent.apps.NUMBER-HASH</string>
-    <key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.NUMBER-HASH</string></array>
-  </dict>
-</array>
+```
+# Config.local.xcconfig (git-ignored)
+GOOGLE_OAUTH_CLIENT_ID_PREFIX = <NUMBER>-<HASH>
 ```
 
-The reversed scheme must match the Drive client ID character for character, or the callback never
-returns to the app.
+`Config.xcconfig` derives `GOOGLE_OAUTH_CLIENT_ID` from that prefix and includes the local file if
+present. Both are wired into the target as its base configuration, so:
+
+- `MindVault/Info.plist` → `GoogleOAuthClientID` = `$(GOOGLE_OAUTH_CLIENT_ID)`, plus the URL scheme
+  `com.googleusercontent.apps.$(GOOGLE_OAUTH_CLIENT_ID_PREFIX)`.
+- `Configuration.GoogleOAuth` reads that key at runtime and exposes `clientID`, `reversedClientID`,
+  `appRedirectURI` (Gmail: `com.mindvault.app:/oauth2redirect`) and `driveRedirectURI`
+  (Drive: `com.googleusercontent.apps.<NUMBER>-<HASH>:/oauth2redirect`).
+- `EmailService` and `DriveService` consume those — no client IDs in Swift.
+
+Leave the prefix unset and `clientID` is empty: `isConfigured()` returns false and the connect
+buttons stay disabled instead of failing mid-flow.
+
+### Scopes
+
+`EmailService.gmailScope` requests `gmail.readonly`, `userinfo.email`, and `openid`;
+`DriveService.scope` requests `drive.readonly`.
 
 ## How the flow works
 
@@ -99,8 +96,8 @@ returns to the app.
 
 | Setting | Where |
 |---------|-------|
-| Client ID | `EmailService.swift` (`gmailClientId`), `DriveService.swift` (`clientId`) |
-| Redirect URI | `EmailService.swift` (`gmailRedirectURI`), `DriveService.swift` (`redirectUri`) |
+| Client ID | `Config.local.xcconfig` → Info.plist → `Configuration.GoogleOAuth.clientID` |
+| Redirect URIs | `Configuration.GoogleOAuth.appRedirectURI` / `.driveRedirectURI` |
 | URL schemes | `MindVault/Info.plist` → `CFBundleURLTypes` |
 | Scopes | `EmailService.gmailScope`, `DriveService.scope` |
 | Sync interval | `EmailService.autoSyncInterval` (5 minutes) |
@@ -111,8 +108,9 @@ returns to the app.
 
 | Error | Fix |
 |-------|-----|
+| Connect button disabled | `GOOGLE_OAUTH_CLIENT_ID_PREFIX` unset — `Config.local.xcconfig` missing or not picked up (clean build folder after creating it) |
 | `redirect_uri_mismatch` | The client is not an iOS client, or its bundle ID isn't `com.mindvault.app` |
-| Browser opens, never returns | Redirect scheme missing from `CFBundleURLTypes`, or a typo in the reversed client ID |
+| Browser opens, never returns | Redirect scheme missing from `CFBundleURLTypes` |
 | `invalid_client` | Client ID typo, or the client was deleted in the Console |
 | `access_denied` / "app not verified" | Account missing from the consent screen's **Test users** |
 | `insufficientPermissions` on sync | Gmail API not enabled, or the scope was declined |
