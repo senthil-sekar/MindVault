@@ -322,30 +322,29 @@ DETAILED CONTENT (Most relevant emails):
             logger.error(f"Failed to upsert document: {e}")
             raise
     
-    async def delete_document(self, id: str) -> bool:
-        """Delete a document from the vector database."""
+    async def delete_document(self, id: str, max_chunks: int = 100) -> bool:
+        """Delete a document from the vector database.
+
+        Also sweeps ``{id}_0``, ``{id}_1``, ... since email_processor's
+        thread-aware chunking (see upsert_email) stores long emails as
+        multiple points under those suffixed ids rather than under the bare
+        id. This is the only delete path the API exposes (DELETE /api/delete
+        takes just an id, with no way to signal "this was chunked"), so it
+        has to handle both shapes. For non-chunked documents (journal
+        entries, profile items, single-chunk uploads) the suffixed deletes
+        are harmless no-ops.
+        """
         try:
             await vector_db_service.delete(id)
+            for i in range(max_chunks):
+                try:
+                    await vector_db_service.delete(f"{id}_{i}")
+                except Exception:
+                    break
             logger.info(f"Deleted document: {id}")
             return True
         except Exception as e:
             logger.error(f"Failed to delete document: {e}")
-            raise
-    
-    async def delete_email(self, email_id: str, max_chunks: int = 100) -> bool:
-        """Delete all chunks for an email."""
-        try:
-            for i in range(max_chunks):
-                chunk_id = f"{email_id}_{i}"
-                try:
-                    await vector_db_service.delete(chunk_id)
-                except Exception:
-                    break
-            
-            logger.info(f"Deleted email and chunks: {email_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to delete email: {e}")
             raise
     
     async def search_similar(

@@ -3,7 +3,7 @@ MindVault Backend Configuration
 """
 
 from typing import Optional
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 
 
@@ -40,9 +40,7 @@ class Settings(BaseSettings):
     rag_top_k: int = 5
     rag_min_score: float = 0.1  # Very low to catch generic queries like "summarize my emails"
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
 @lru_cache()

@@ -26,17 +26,6 @@ from app.services import (
     rag_service
 )
 
-# Agent orchestrator - lazy loaded after services are ready
-_orchestrator = None
-
-def get_orchestrator():
-    """Lazy-load the agent orchestrator."""
-    global _orchestrator
-    if _orchestrator is None:
-        from app.agents.orchestrator import agent_orchestrator
-        _orchestrator = agent_orchestrator
-    return _orchestrator
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -254,35 +243,21 @@ async def search_documents(request: SearchRequest):
 
 
 # ─────────────────────────────────────────
-# MARK: - Chat  (routed through Agent Orchestrator)
+# MARK: - Chat
 # ─────────────────────────────────────────
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """
-    Chat endpoint - routes through the LangGraph agent orchestrator.
-    The orchestrator classifies intent and dispatches to the appropriate
-    specialist agent (Email, Drive, Journal) before synthesising a response.
-    """
+    """Chat endpoint - RAG search over the vector store, then LLM synthesis."""
     try:
-        orchestrator = get_orchestrator()
-        response, contexts = await orchestrator.process(
+        response, contexts = await rag_service.process_query(
             query=request.message,
             history=request.history
         )
         return ChatResponse(response=response, contexts=contexts)
     except Exception as e:
         logger.error(f"Chat error: {e}", exc_info=True)
-        # Graceful fallback to plain RAG
-        try:
-            response, contexts = await rag_service.process_query(
-                query=request.message,
-                history=request.history
-            )
-            return ChatResponse(response=response, contexts=contexts)
-        except Exception as fallback_error:
-            logger.error(f"Fallback chat error: {fallback_error}")
-            raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # ─────────────────────────────────────────

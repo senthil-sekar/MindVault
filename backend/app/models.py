@@ -79,12 +79,6 @@ class SearchResponse(BaseModel):
 
 # MARK: - Chat Models
 
-class ChatMessage(BaseModel):
-    """A single chat message."""
-    role: str = Field(..., pattern="^(user|assistant|system)$")
-    content: str
-
-
 class ChatRequest(BaseModel):
     """Request to generate a chat response."""
     message: str = Field(..., min_length=1)
@@ -114,25 +108,3 @@ class HealthResponse(BaseModel):
     vector_db_status: str
     embeddings_ready: bool
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-
-# MARK: - Document Models
-
-class JournalEntryMetadata(BaseModel):
-    """Metadata for a journal entry."""
-    id: str
-    type: str = "journal_entry"
-    category: str
-    tags: List[str] = Field(default_factory=list)
-    created_at: str
-    title: str
-
-
-class ProfileItemMetadata(BaseModel):
-    """Metadata for a profile item."""
-    id: str
-    type: str
-    title: str
-    proficiency: Optional[int] = None
-    tags: List[str] = Field(default_factory=list)
-    is_current: bool = False

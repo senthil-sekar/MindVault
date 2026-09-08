@@ -27,7 +27,7 @@ def mocked_services(monkeypatch):
     rag.upsert_email = AsyncMock(return_value=True)
     rag.delete_document = AsyncMock(return_value=True)
     rag.search_similar = AsyncMock(return_value=[])
-    rag.process_query = AsyncMock(return_value=("fallback answer", []))
+    rag.process_query = AsyncMock(return_value=("rag answer", []))
 
     monkeypatch.setattr(main, "embedding_service", embedding)
     monkeypatch.setattr(main, "vector_db_service", vector_db)
@@ -35,15 +35,6 @@ def mocked_services(monkeypatch):
     monkeypatch.setattr(main.llm_service, "initialize", lambda: None)
 
     return {"embedding": embedding, "vector_db": vector_db, "rag": rag}
-
-
-@pytest.fixture
-def orchestrator(monkeypatch):
-    """Stub the LangGraph orchestrator behind /api/chat."""
-    stub = MagicMock()
-    stub.process = AsyncMock(return_value=("agent answer", []))
-    monkeypatch.setattr(main, "get_orchestrator", lambda: stub)
-    return stub
 
 
 @pytest.fixture

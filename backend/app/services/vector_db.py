@@ -297,70 +297,6 @@ class VectorDBService:
         # Normalize to 0-1
         return min(total_score / max_possible, 1.0) if max_possible > 0 else 0.0
     
-    async def search_by_text(
-        self,
-        query_text: str,
-        fields: List[str],
-        top_k: int = 5,
-        filter_conditions: Optional[Dict] = None
-    ) -> List[Dict]:
-        """
-        Pure keyword/text search without vectors.
-        Useful for exact name or date queries.
-        """
-        try:
-            # Build text match conditions
-            should_conditions = []
-            for field in fields:
-                should_conditions.append(
-                    models.FieldCondition(
-                        key=field,
-                        match=models.MatchText(text=query_text)
-                    )
-                )
-            
-            # Build filter
-            query_filter = models.Filter(
-                should=should_conditions,
-                min_should=models.MinShould(conditions=should_conditions, min_count=1)
-            )
-            
-            # Add additional filter conditions
-            if filter_conditions:
-                must_conditions = []
-                for key, value in filter_conditions.items():
-                    must_conditions.append(
-                        models.FieldCondition(
-                            key=key,
-                            match=models.MatchValue(value=value)
-                        )
-                    )
-                query_filter.must = must_conditions
-            
-            # Scroll through matching results
-            results, _ = self.client.scroll(
-                collection_name=self.collection_name,
-                scroll_filter=query_filter,
-                limit=top_k,
-                with_payload=True,
-                with_vectors=False
-            )
-            
-            formatted_results = []
-            for result in results:
-                formatted_results.append({
-                    "id": str(result.id),
-                    "score": 1.0,  # No vector score for text search
-                    "metadata": result.payload,
-                    "content": result.payload.get("content", "")
-                })
-            
-            return formatted_results
-            
-        except Exception as e:
-            logger.error(f"Text search failed: {e}")
-            raise
-    
     async def get_collection_info(self) -> dict:
         """Get information about the collection."""
         try:
@@ -374,17 +310,6 @@ class VectorDBService:
             }
         except Exception as e:
             logger.error(f"Failed to get collection info: {e}")
-            raise
-    
-    async def clear_collection(self) -> bool:
-        """Clear all documents from the collection."""
-        try:
-            self.client.delete_collection(self.collection_name)
-            self._ensure_collection()
-            logger.info(f"Cleared collection: {self.collection_name}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to clear collection: {e}")
             raise
 
 

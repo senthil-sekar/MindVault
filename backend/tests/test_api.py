@@ -159,25 +159,19 @@ def test_search_rejects_out_of_range_top_k(client):
     assert client.post("/api/search", json={"query": "rag", "top_k": 99}).status_code == 422
 
 
-def test_chat_uses_orchestrator(client, orchestrator):
+def test_chat_uses_rag_service(client, mocked_services):
     response = client.post("/api/chat", json={"message": "what did I do today?"})
-    assert response.json()["response"] == "agent answer"
-    orchestrator.process.assert_awaited_once()
+    assert response.json()["response"] == "rag answer"
+    mocked_services["rag"].process_query.assert_awaited_once_with(
+        query="what did I do today?", history=None
+    )
 
 
-def test_chat_falls_back_to_plain_rag(client, mocked_services, orchestrator):
-    orchestrator.process.side_effect = RuntimeError("graph exploded")
-    response = client.post("/api/chat", json={"message": "what did I do today?"})
-    assert response.status_code == 200
-    assert response.json()["response"] == "fallback answer"
-
-
-def test_chat_reports_original_error_when_fallback_also_fails(client, mocked_services, orchestrator):
-    orchestrator.process.side_effect = RuntimeError("graph exploded")
+def test_chat_reports_error_on_failure(client, mocked_services):
     mocked_services["rag"].process_query.side_effect = RuntimeError("qdrant down")
     response = client.post("/api/chat", json={"message": "hello"})
     assert response.status_code == 500
-    assert "graph exploded" in response.json()["detail"]
+    assert "qdrant down" in response.json()["detail"]
 
 
 def test_stats(client):

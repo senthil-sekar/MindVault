@@ -52,28 +52,6 @@ class EmbeddingService:
             logger.error(f"Failed to generate embedding: {e}")
             raise
     
-    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts."""
-        if not self.model:
-            raise RuntimeError("Embedding model not initialized")
-        
-        try:
-            cleaned_texts = [self._prepare_text(t) for t in texts]
-            
-            # Batch processing is more efficient
-            embeddings = self.model.encode(
-                cleaned_texts,
-                convert_to_numpy=True,
-                show_progress_bar=False
-            )
-            
-            logger.debug(f"Generated {len(embeddings)} embeddings")
-            return [emb.tolist() for emb in embeddings]
-            
-        except Exception as e:
-            logger.error(f"Failed to generate embeddings: {e}")
-            raise
-    
     def _prepare_text(self, text: str, max_length: int = 8000) -> str:
         """Clean and truncate text for embedding."""
         # Remove excessive whitespace
