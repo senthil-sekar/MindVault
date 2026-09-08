@@ -453,46 +453,29 @@ class EmailService: NSObject, ObservableObject {
                 modelContext.insert(emailMessage)
                 try modelContext.save()
                 
-                // Index the email for retrieval.
+                // Index the email for retrieval, entirely on-device.
                 do {
-                    if Configuration.llmMode == .localLLM {
-                        // On-device: no backend to do HTML cleaning / thread chunking,
-                        // so index the plain body through the local vector store.
-                        var metadata: [String: Any] = [
-                            "type": "email",
-                            "from": message.from,
-                            "subject": message.subject,
-                            "date": ISO8601DateFormatter().string(from: message.date)
-                        ]
-                        if !message.threadId.isEmpty { metadata["thread_id"] = message.threadId }
-                        if !message.labels.isEmpty { metadata["labels"] = message.labels }
+                    var metadata: [String: Any] = [
+                        "type": "email",
+                        "from": message.from,
+                        "subject": message.subject,
+                        "date": ISO8601DateFormatter().string(from: message.date)
+                    ]
+                    if !message.threadId.isEmpty { metadata["thread_id"] = message.threadId }
+                    if !message.labels.isEmpty { metadata["labels"] = message.labels }
 
-                        let content = """
-                        From: \(message.from)
-                        Subject: \(message.subject)
+                    let content = """
+                    From: \(message.from)
+                    Subject: \(message.subject)
 
-                        \(message.body)
-                        """
-                        try await VectorDBService.shared.upsert(
-                            id: emailMessage.id.uuidString,
-                            content: content,
-                            type: "email",
-                            metadata: metadata
-                        )
-                    } else {
-                        // Backend path uses the email-specific endpoint, which handles
-                        // HTML cleaning, signature/disclaimer removal, thread-aware
-                        // chunking, and rich metadata for hybrid search.
-                        try await APIClient.shared.upsertEmail(
-                            id: emailMessage.id.uuidString,
-                            content: message.body,
-                            subject: message.subject,
-                            sender: message.from,
-                            date: message.date,
-                            threadId: message.threadId.isEmpty ? nil : message.threadId,
-                            labels: message.labels.isEmpty ? nil : message.labels
-                        )
-                    }
+                    \(message.body)
+                    """
+                    try await VectorDBService.shared.upsert(
+                        id: emailMessage.id.uuidString,
+                        content: content,
+                        type: "email",
+                        metadata: metadata
+                    )
 
                     print("✅ Email indexed: \(message.subject)")
                     emailMessage.isProcessedForAI = true

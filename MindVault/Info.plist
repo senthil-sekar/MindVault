@@ -3,18 +3,12 @@
 <plist version="1.0">
 <dict>
 	<!--
-	  NSAllowsArbitraryLoads=true allows plain HTTP to the backend, whose address
-	  is a developer's own machine on the local network and varies per developer
-	  (Configuration.defaultServerURL auto-detects the Mac's en0 IP). Per Apple's
-	  ATS docs, NSExceptionDomains is ignored entirely once NSAllowsArbitraryLoads
-	  is set, so a previous per-IP exception-domain list here was dead — and baked
-	  one developer's home network IP into shared source. Removed.
+	  No NSAppTransportSecurity override: MindVault has no backend, so every
+	  network call is HTTPS to a public API (OpenAI, Hugging Face, Google OAuth/
+	  Gmail/Drive) and Apple's default ATS policy (HTTPS-only, TLS 1.2+) applies
+	  as-is. An earlier version allowed arbitrary plain HTTP for a self-hosted
+	  backend on the local network; that mode no longer exists.
 	-->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MindVault needs access to your microphone to enable voice input for chat messages.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

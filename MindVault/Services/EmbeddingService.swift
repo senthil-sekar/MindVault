@@ -2,47 +2,15 @@
 //  EmbeddingService.swift
 //  MindVault
 //
-//  Service for generating text embeddings.
-//  Backend mode: calls /api/embed (all-MiniLM-L6-v2, 384-dim via Python backend).
-//  Local mode:   uses NLEmbedding.sentenceEmbedding (on-device, no network).
+//  On-device text embeddings via NLEmbedding — no backend, no download, no network.
 //
 
 import Foundation
 import NaturalLanguage
 
-@MainActor
-class EmbeddingService: ObservableObject {
-    static let shared = EmbeddingService()
-
-    @Published var isProcessing = false
-    @Published var lastError: String?
-
-    private let apiClient = APIClient.shared
-
-    private init() {}
-
-    // MARK: - Generate Embedding  (routes by current llmMode)
-    func generateEmbedding(for text: String) async throws -> [Float] {
-        isProcessing = true
-        defer { isProcessing = false }
-
-        do {
-            let vector: [Float]
-            if Configuration.llmMode == .localLLM {
-                vector = try embedLocally(text)
-            } else {
-                vector = try await apiClient.embed(text: text)
-            }
-            lastError = nil
-            return vector
-        } catch {
-            lastError = error.localizedDescription
-            throw error
-        }
-    }
-
-    // MARK: - On-Device Embedding  (NLEmbedding — built-in, no download, ~512-dim)
-    func embedLocally(_ text: String) throws -> [Float] {
+enum EmbeddingService {
+    /// NLEmbedding.sentenceEmbedding — built-in on iOS, ~512-dim.
+    static func embedLocally(_ text: String) throws -> [Float] {
         guard let model = NLEmbedding.sentenceEmbedding(for: .english) else {
             throw EmbeddingError.modelUnavailable
         }
@@ -51,7 +19,6 @@ class EmbeddingService: ObservableObject {
         }
         return vector.map { Float($0) }
     }
-
 }
 
 // MARK: - Embedding Errors

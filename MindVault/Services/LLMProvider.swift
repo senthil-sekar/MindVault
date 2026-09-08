@@ -2,7 +2,9 @@
 //  LLMProvider.swift
 //  MindVault
 //
-//  LLM provider abstraction supporting backend (Ollama), BYOK (OpenAI), and on-device models.
+//  LLM provider abstraction. MindVault has no self-hosted backend — every mode
+//  runs entirely on-device except the generation call in BYOK mode, which goes
+//  straight from this device to the provider's API.
 //
 
 import Foundation
@@ -10,13 +12,11 @@ import Foundation
 // MARK: - Provider Mode
 
 enum LLMProviderMode: String, CaseIterable {
-    case backend  = "backend"
     case openAI   = "openai"
     case localLLM = "local"
 
     var displayName: String {
         switch self {
-        case .backend:  return "AI Backend (Ollama)"
         case .openAI:   return "OpenAI (BYOK)"
         case .localLLM: return "On-Device Model"
         }
@@ -24,15 +24,13 @@ enum LLMProviderMode: String, CaseIterable {
 
     var description: String {
         switch self {
-        case .backend:  return "Self-hosted backend with Ollama — Mac must be on the same network"
-        case .openAI:   return "Your own OpenAI API key — fast, but uses the cloud"
-        case .localLLM: return "100% on-device — fully private, works offline"
+        case .openAI:   return "Your own OpenAI API key — faster and more capable, at the cost of sending your questions to OpenAI"
+        case .localLLM: return "100% on-device — nothing ever leaves your phone, works offline"
         }
     }
 
     var privacyLabel: String {
         switch self {
-        case .backend:  return "Local Network"
         case .openAI:   return "Cloud (OpenAI)"
         case .localLLM: return "On-Device"
         }
@@ -40,7 +38,6 @@ enum LLMProviderMode: String, CaseIterable {
 
     var privacyIcon: String {
         switch self {
-        case .backend:  return "wifi"
         case .openAI:   return "cloud"
         case .localLLM: return "iphone.and.arrow.forward"
         }
@@ -57,16 +54,7 @@ protocol LLMProvider: Sendable {
     ) async throws -> String
 }
 
-// MARK: - Backend Provider  (existing: iOS → Python backend → Ollama)
-
-struct BackendLLMProvider: LLMProvider {
-    func complete(systemPrompt: String, userMessage: String, history: [[String: String]]) async throws -> String {
-        let request = ChatRequest(message: userMessage, history: history.isEmpty ? nil : history)
-        return try await APIClient.shared.chat(request: request).response
-    }
-}
-
-// MARK: - OpenAI Direct Provider  (BYOK — no backend required for LLM)
+// MARK: - OpenAI Direct Provider  (BYOK — generation only; retrieval is always on-device)
 
 struct OpenAIDirectProvider: LLMProvider {
     let apiKey: String

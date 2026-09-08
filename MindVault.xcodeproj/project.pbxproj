@@ -35,7 +35,6 @@
 		E01234562014 /* VectorDBService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560114 /* VectorDBService.swift */; };
 		E01234562015 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560115 /* LLMService.swift */; };
 		E01234562016 /* RAGService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560116 /* RAGService.swift */; };
-		E01234562017 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560117 /* APIClient.swift */; };
 		E01234562018 /* Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560118 /* Configuration.swift */; };
 		E01234562019 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560119 /* LLMProvider.swift */; };
 		E01234562020 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560120 /* ModelCatalog.swift */; };
@@ -76,7 +75,6 @@
 		E01234560114 /* VectorDBService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VectorDBService.swift; sourceTree = "<group>"; };
 		E01234560115 /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
 		E01234560116 /* RAGService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAGService.swift; sourceTree = "<group>"; };
-		E01234560117 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		E01234560118 /* Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Configuration.swift; sourceTree = "<group>"; };
 		E01234560119 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
 		E01234560120 /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
@@ -183,7 +181,6 @@
 		E01234570007 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
-				E01234560117 /* APIClient.swift */,
 				E01234560118 /* Configuration.swift */,
 			);
 			path = Utilities;
@@ -311,7 +308,6 @@
 				E01234562014 /* VectorDBService.swift in Sources */,
 				E01234562015 /* LLMService.swift in Sources */,
 				E01234562016 /* RAGService.swift in Sources */,
-				E01234562017 /* APIClient.swift in Sources */,
 				E01234562018 /* Configuration.swift in Sources */,
 				E01234562019 /* LLMProvider.swift in Sources */,
 				E01234562020 /* ModelCatalog.swift in Sources */,

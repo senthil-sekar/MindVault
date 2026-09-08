@@ -377,68 +377,37 @@ class DriveService: NSObject, ObservableObject {
             actualMimeType = mimeType
         }
         
-        // On-device mode: extract text locally and index into the local vector
-        // store instead of shipping the file to the backend.
-        if Configuration.llmMode == .localLLM {
-            let text = try extractTextOnDevice(from: data, mimeType: actualMimeType, filename: filename)
-            let chunks = Self.chunk(text)
-            guard !chunks.isEmpty else {
-                throw DriveError.processingFailed("No readable text found in \(filename).")
-            }
-            // Clear chunks from a previous, longer version of this document,
-            // otherwise stale trailing chunks linger in the index forever.
-            LocalVectorStore.shared.deleteAll(withPrefix: "\(fileId)_chunk")
-            for (i, chunk) in chunks.enumerated() {
-                try await VectorDBService.shared.upsert(
-                    id: "\(fileId)_chunk\(i)",
-                    content: chunk,
-                    type: "document",
-                    metadata: [
-                        "title": filename,
-                        "file_id": fileId,
-                        "source": "google_drive",
-                        "chunk": i
-                    ]
-                )
-            }
-            syncStatus = "Indexed \(filename) (\(chunks.count) chunks)"
-            return chunks.count
+        // Extract text on-device and index into the local vector store.
+        let text = try extractTextOnDevice(from: data, mimeType: actualMimeType, filename: filename)
+        let chunks = Self.chunk(text)
+        guard !chunks.isEmpty else {
+            throw DriveError.processingFailed("No readable text found in \(filename).")
         }
-
-        // Send to backend for processing
-        let base64Content = data.base64EncodedString()
-
-        let requestBody: [String: Any] = [
-            "file_id": fileId,
-            "filename": filename,
-            "mime_type": actualMimeType,
-            "content_base64": base64Content,
-            "source": "google_drive"
-        ]
-
-        let url = URL(string: Configuration.Endpoints.upsertDocument)!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        
-        let (responseData, _) = try await URLSession.shared.data(for: request)
-        
-        let response = try JSONDecoder().decode(DocumentUpsertResponse.self, from: responseData)
-        
-        if response.success {
-            syncStatus = "Indexed \(filename) (\(response.chunks_created) chunks)"
-            return response.chunks_created
-        } else {
-            throw DriveError.processingFailed(response.message)
+        // Clear chunks from a previous, longer version of this document,
+        // otherwise stale trailing chunks linger in the index forever.
+        LocalVectorStore.shared.deleteAll(withPrefix: "\(fileId)_chunk")
+        for (i, chunk) in chunks.enumerated() {
+            try await VectorDBService.shared.upsert(
+                id: "\(fileId)_chunk\(i)",
+                content: chunk,
+                type: "document",
+                metadata: [
+                    "title": filename,
+                    "file_id": fileId,
+                    "source": "google_drive",
+                    "chunk": i
+                ]
+            )
         }
+        syncStatus = "Indexed \(filename) (\(chunks.count) chunks)"
+        return chunks.count
     }
 
     // MARK: - On-Device Text Extraction
 
-    /// Extracts plain text without a backend. PDFKit covers PDFs — including
-    /// Google Docs, which are exported as PDF above — and UTF-8 text files.
-    /// Other binary formats (.docx, .pptx) still need the backend's parsers.
+    /// Extracts plain text on-device. PDFKit covers PDFs — including Google Docs,
+    /// which are exported as PDF above — and UTF-8 text files. Other binary
+    /// formats (.docx, .pptx) aren't supported; there's no backend to parse them.
     private func extractTextOnDevice(from data: Data, mimeType: String, filename: String) throws -> String {
         let lower = filename.lowercased()
 
@@ -464,7 +433,7 @@ class DriveService: NSObject, ObservableObject {
         }
 
         throw DriveError.processingFailed(
-            "On-Device mode can index PDFs, Google Docs, and text files. \(filename) needs the backend for text extraction."
+            "MindVault can index PDFs, Google Docs, and text files. \(filename) is a format it can't extract text from on-device."
         )
     }
 
@@ -619,13 +588,6 @@ struct DriveFileItem: Identifiable {
         formatter.countStyle = .file
         return formatter.string(fromByteCount: size)
     }
-}
-
-struct DocumentUpsertResponse: Codable {
-    let success: Bool
-    let message: String
-    let chunks_created: Int
-    let filename: String?
 }
 
 enum DriveError: LocalizedError {

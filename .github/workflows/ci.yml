@@ -6,30 +6,6 @@ on:
   pull_request:
 
 jobs:
-  backend:
-    name: Backend (ruff + pytest)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
-
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
-
-      - name: Ruff
-        run: ruff check .
-
-      - name: Pytest
-        run: pytest
-
   mcp-server:
     name: MCP server (tsc)
     runs-on: ubuntu-latest

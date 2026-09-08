@@ -63,16 +63,15 @@ class SpeechRecognitionService: ObservableObject {
         
         recognitionRequest.shouldReportPartialResults = true
 
-        // Keep dictation on-device so voice journaling never ships audio to Apple's
-        // servers. Required for the privacy guarantee in local mode; also avoids a
-        // silent network dependency. Falls back to server recognition only when the
-        // device/locale can't do it (older hardware, unsupported language).
-        if speechRecognizer?.supportsOnDeviceRecognition == true {
-            recognitionRequest.requiresOnDeviceRecognition = true
-        } else if Configuration.llmMode == .localLLM {
-            // The user explicitly chose fully-private mode — don't silently upload audio.
+        // Voice audio never leaves the device, in either AI mode — MindVault's
+        // privacy guarantee covers dictation unconditionally, not just On-Device
+        // mode. (BYOK only ever sends the text query, never audio.) If the
+        // device/locale can't do on-device recognition (older hardware,
+        // unsupported language), refuse rather than silently upload audio.
+        guard speechRecognizer?.supportsOnDeviceRecognition == true else {
             throw SpeechError.onDeviceUnavailable
         }
+        recognitionRequest.requiresOnDeviceRecognition = true
 
         // Configure audio engine
         let inputNode = audioEngine.inputNode
@@ -135,7 +134,7 @@ class SpeechRecognitionService: ObservableObject {
             case .recognizerUnavailable:
                 return "Speech recognizer unavailable"
             case .onDeviceUnavailable:
-                return "This device can't transcribe on-device, and On-Device mode won't send your voice to Apple's servers. Switch AI Mode or type your entry instead."
+                return "This device or language can't transcribe on-device, and MindVault never sends your voice to Apple's servers. Type your entry instead."
             }
         }
     }

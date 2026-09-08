@@ -362,16 +362,13 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var emailAccounts: [EmailAccount]
     
-    @AppStorage("serverURL")     private var serverURL    = Configuration.defaultServerURL
-    @AppStorage("llmMode")       private var llmModeRaw   = LLMProviderMode.backend.rawValue
+    @AppStorage("llmMode")       private var llmModeRaw   = LLMProviderMode.localLLM.rawValue
     @AppStorage("openAIModel")   private var openAIModel  = "gpt-4o-mini"
     @AppStorage("localModelPath") private var localModelPath = ""
     @AppStorage("autoSync")      private var autoSync     = true
 
     @Query private var journalEntries: [JournalEntry]
     @Query private var allProfileItems: [ProfileItem]
-
-    @ObservedObject private var vectorDB = VectorDBService.shared
 
     @State private var showEmailConnection = false
     @State private var showEmailList = false
@@ -382,7 +379,7 @@ struct SettingsView: View {
     @State private var showClearDataConfirm = false
 
     private var llmMode: LLMProviderMode {
-        LLMProviderMode(rawValue: llmModeRaw) ?? .backend
+        LLMProviderMode(rawValue: llmModeRaw) ?? .localLLM
     }
     
     var body: some View {
@@ -431,26 +428,6 @@ struct SettingsView: View {
                     Text(llmMode.description)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-
-                    if llmMode != .localLLM {
-                        Label(
-                            vectorDB.isConnected ? "Backend Connected" : "Backend Unreachable",
-                            systemImage: vectorDB.isConnected ? "checkmark.circle.fill" : "exclamationmark.triangle.fill"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(vectorDB.isConnected ? .green : .orange)
-                    }
-                }
-
-                if llmMode == .backend {
-                    Section("Backend Server") {
-                        TextField("Server URL", text: $serverURL)
-                            .autocapitalization(.none)
-                            .keyboardType(.URL)
-                        Text("Default: \(Configuration.defaultServerURL)\nFor iOS Simulator use your Mac's IP.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
 
                 if llmMode == .openAI {
@@ -565,9 +542,6 @@ struct SettingsView: View {
                 openAIKeyEntry = (try? KeychainService.shared.retrieveAPIKey(for: "openai")) ?? ""
                 apiKeySaved = !openAIKeyEntry.isEmpty
             }
-            .task(id: llmModeRaw) {
-                await vectorDB.checkConnection()
-            }
             .confirmationDialog(
                 "Clear all AI data?",
                 isPresented: $showClearDataConfirm,
@@ -597,16 +571,7 @@ struct SettingsView: View {
     }
 
     private func clearAIData() {
-        if llmMode == .localLLM {
-            LocalVectorStore.shared.deleteAll()
-        } else {
-            let ids = journalEntries.compactMap(\.embeddingId) + allProfileItems.compactMap(\.embeddingId)
-            Task {
-                for id in ids {
-                    try? await APIClient.shared.delete(request: DeleteRequest(id: id))
-                }
-            }
-        }
+        LocalVectorStore.shared.deleteAll()
         // Reset local flags so Sync All Now re-indexes everything.
         for entry in journalEntries {
             entry.isEmbedded = false
