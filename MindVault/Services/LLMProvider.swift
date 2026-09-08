@@ -132,53 +132,89 @@ struct OpenAIDirectProvider: LLMProvider {
     }
 }
 
-// MARK: - Local LLM Provider  (stub — wire llama.cpp or MLX-Swift here)
+// MARK: - Local LLM Provider  (MLX-Swift — A17 Pro+ iPhones)
 //
-// To activate local inference:
+// To activate on-device inference:
+//   1. In Xcode → File → Add Package Dependencies:
+//      https://github.com/ml-explore/mlx-swift-examples
+//      Select the "MLXLM" library target.
+//   2. The #if canImport(MLXLM) block below becomes active automatically.
 //
-// Option A — llama.cpp (all iPhones):
-//   1. Add Swift package: https://github.com/ggerganov/llama.cpp  (tag: swift-*)
-//   2. Replace the throw below with:
-//        let ctx = try await LlamaContext.create(modelPath: modelPath)
-//        return try await ctx.complete(systemPrompt: systemPrompt, userMessage: userMessage)
-//
-// Option B — MLX-Swift (Apple Silicon iPhones, A17+ recommended):
-//   1. Add packages: https://github.com/ml-explore/mlx-swift-examples
-//   2. Follow the LLMEval example to load a .gguf model from Documents.
-//
-// Model files: copy any Q4-quantized .gguf (Llama 3.2 1B ~700 MB, Phi-3 Mini ~2 GB)
-// into the app's Documents folder via Files.app or iTunes File Sharing.
+// Model setup (one-time per model):
+//   - Download a 4-bit quantized MLX model from Hugging Face, e.g.:
+//       mlx-community/Llama-3.2-1B-Instruct-4bit   (~700 MB)
+//       mlx-community/Phi-3.5-mini-instruct-4bit   (~2.2 GB)
+//   - Copy the entire model folder (config.json + *.safetensors) to the
+//     app's Documents directory via Files.app or Xcode → Devices.
+//   - The folder appears in Settings → AI Mode → Local Model.
 
 struct LocalLLMProvider: LLMProvider {
     let modelPath: String
 
     func complete(systemPrompt: String, userMessage: String, history: [[String: String]]) async throws -> String {
-        throw LLMError.localModelNotInstalled
+        guard !modelPath.isEmpty else { throw LLMError.noModelSelected }
+        #if canImport(MLXLM)
+        let modelURL = URL(fileURLWithPath: modelPath)
+        let config = ModelConfiguration(directory: modelURL)
+        let container = try await LLMModelFactory.shared.loadContainer(configuration: config)
+
+        var messages: [[String: String]] = [["role": "system", "content": systemPrompt]]
+        messages.append(contentsOf: history)
+        messages.append(["role": "user", "content": userMessage])
+
+        let result = try await container.perform { context in
+            let input = try await context.processor.prepare(input: .init(messages: messages))
+            return try MLXLMCommon.generate(
+                input: input,
+                parameters: .init(temperature: Float(Configuration.LLM.temperature)),
+                context: context
+            ) { _ in .more }
+        }
+        let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !output.isEmpty else { throw LLMError.emptyResponse }
+        return output
+        #else
+        throw LLMError.mlxPackageNotInstalled
+        #endif
     }
 }
 
 // MARK: - Local Model Descriptor
 
+/// Represents an MLX model folder in the app's Documents directory.
+/// An MLX model is a folder containing config.json + *.safetensors weight files.
 struct LocalModel: Identifiable {
     let url: URL
     var id: String   { url.lastPathComponent }
-    var name: String { url.deletingPathExtension().lastPathComponent }
+    var name: String { url.lastPathComponent }
     var sizeString: String {
-        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        let gb = Double(bytes) / 1_073_741_824
-        return gb >= 1 ? String(format: "%.1f GB", gb) : String(format: "%d MB", bytes / 1_048_576)
+        guard let enumerator = FileManager.default.enumerator(
+            at: url, includingPropertiesForKeys: [.fileSizeKey], options: .skipsHiddenFiles
+        ) else { return "?" }
+        var totalBytes = 0
+        for case let fileURL as URL in enumerator {
+            totalBytes += (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        }
+        let gb = Double(totalBytes) / 1_073_741_824
+        return gb >= 1 ? String(format: "%.1f GB", gb) : String(format: "%d MB", totalBytes / 1_048_576)
     }
 
-    /// Scans the app's Documents directory for .gguf model files.
+    /// Scans Documents for subdirectories that look like MLX model folders
+    /// (contain config.json and at least one .safetensors file).
     static var downloaded: [LocalModel] {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return ((try? FileManager.default.contentsOfDirectory(
-            at: docs,
-            includingPropertiesForKeys: [.fileSizeKey],
-            options: .skipsHiddenFiles
-        )) ?? [])
-        .filter { $0.pathExtension == "gguf" }
-        .map { LocalModel(url: $0) }
+        let fm = FileManager.default
+        let docs = fm.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let dirs = (try? fm.contentsOfDirectory(
+            at: docs, includingPropertiesForKeys: [.isDirectoryKey], options: .skipsHiddenFiles
+        )) ?? []
+        return dirs.filter { url in
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { return false }
+            let hasConfig = fm.fileExists(atPath: url.appendingPathComponent("config.json").path)
+            let hasSafetensors = ((try? fm.contentsOfDirectory(atPath: url.path)) ?? [])
+                .contains { $0.hasSuffix(".safetensors") }
+            return hasConfig && hasSafetensors
+        }.map { LocalModel(url: $0) }
     }
 }
 
@@ -191,7 +227,8 @@ enum LLMError: LocalizedError {
     case emptyResponse
     case networkError
     case serverError(Int)
-    case localModelNotInstalled
+    case noModelSelected
+    case mlxPackageNotInstalled
 
     var errorDescription: String? {
         switch self {
@@ -207,8 +244,10 @@ enum LLMError: LocalizedError {
             return "Network error. Check your internet connection."
         case .serverError(let code):
             return "Server error (\(code)). Try again later."
-        case .localModelNotInstalled:
-            return "No local model found. Copy a .gguf model file to the app's Documents folder."
+        case .noModelSelected:
+            return "No local model selected. Choose a model in Settings → AI Mode."
+        case .mlxPackageNotInstalled:
+            return "MLX-Swift package not yet linked. Add mlx-swift-examples in Xcode → Add Package Dependencies."
         }
     }
 }

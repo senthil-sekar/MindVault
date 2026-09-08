@@ -456,10 +456,10 @@ struct SettingsView: View {
                 }
 
                 if llmMode == .localLLM {
-                    Section("Local Model") {
+                    Section("Local Model (MLX)") {
                         let models = LocalModel.downloaded
                         if models.isEmpty {
-                            Text("No models found. Copy a .gguf file (e.g. Llama 3.2 1B, Phi-3 Mini) to the app's Documents folder via Files.app.")
+                            Text("No models found. Copy an MLX model folder (e.g. mlx-community/Llama-3.2-1B-Instruct-4bit) to the app's Documents directory via Files.app.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else {
@@ -469,7 +469,7 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        Text("llama.cpp integration required — see LLMProvider.swift for setup instructions.")
+                        Text("Requires iPhone 15 Pro or later (A17 Pro+) and the MLX-Swift package linked in Xcode.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
