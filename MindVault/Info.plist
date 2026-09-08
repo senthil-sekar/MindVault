@@ -2,27 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!--
+	  NSAllowsArbitraryLoads=true allows plain HTTP to the backend, whose address
+	  is a developer's own machine on the local network and varies per developer
+	  (Configuration.defaultServerURL auto-detects the Mac's en0 IP). Per Apple's
+	  ATS docs, NSExceptionDomains is ignored entirely once NSAllowsArbitraryLoads
+	  is set, so a previous per-IP exception-domain list here was dead — and baked
+	  one developer's home network IP into shared source. Removed.
+	-->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>192.168.1.24</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>localhost</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-		</dict>
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>MindVault needs access to your microphone to enable voice input for chat messages.</string>

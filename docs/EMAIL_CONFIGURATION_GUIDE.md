@@ -89,8 +89,8 @@ buttons stay disabled instead of failing mid-flow.
 7. **Indexing** — each message is posted to `POST /api/upsert/email`, where the backend strips
    signatures and disclaimers, chunks thread-aware with a `Subject`/`Date` header per chunk, and
    upserts embeddings with metadata (`sender`, `subject`, `thread_id`, `labels`, `date`).
-8. **Retrieval** — the Email agent filters on `type == "email"` when a chat query looks
-   mail-related.
+8. **Retrieval** — chat queries run a semantic vector search across the whole collection (no
+   type filter); embedding similarity is what surfaces email content for mail-related questions.
 
 ## Reference
 

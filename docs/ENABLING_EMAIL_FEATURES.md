@@ -1,8 +1,9 @@
 # Enabling Email Features (5 minutes)
 
 The Gmail integration ships in the app but needs one developer-side value: a Google OAuth **iOS
-client ID**. Without it every connect attempt fails, because `EmailService.isConfigured()` only
-returns true once the ID is set. It lives in `Config.local.xcconfig`, not in source.
+client ID**. Without it, the Connect button in the app is disabled with an explanatory message —
+`EmailAccountConnectionView` checks `EmailService.isConfigured()`, which only returns true once
+the ID is set. It lives in `Config.local.xcconfig`, not in source.
 
 If you just want to *use* an already-configured build, skip to [Using it](#using-it).
 
@@ -46,7 +47,8 @@ both schemes are registered in `MindVault/Info.plist`.
   `POST /api/upsert/email` so the backend can chunk and index it.
 - Auto-sync polls every 5 minutes while the app is running; toggle it in Settings.
 - Once indexed, emails are answerable in **Chat** ("what did Alice email me about the invoice?") —
-  the backend's Email agent handles those queries.
+  the backend runs a semantic vector search across the whole collection and surfaces whatever's
+  most relevant, email included.
 - Messages deleted in Gmail are dropped locally and from the vector DB on the next sync.
 - Disconnecting an account deletes its Keychain tokens; already indexed messages stay until you
   clear and resync.

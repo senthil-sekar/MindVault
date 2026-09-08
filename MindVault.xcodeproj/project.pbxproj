@@ -12,7 +12,6 @@
 		D030D84E2F46C2B600A9B610 /* DriveService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D030D84D2F46C2B600A9B610 /* DriveService.swift */; };
 		D0954EF42F37A77900A58439 /* TextToSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF32F37A77900A58439 /* TextToSpeechService.swift */; };
 		D0954EF52F37A77900A58439 /* SpeechRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */; };
-		D0954EF92F37B90500A58439 /* EmailProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF62F37B90500A58439 /* EmailProcessingService.swift */; };
 		D0954EFA2F37B90500A58439 /* EmailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF72F37B90500A58439 /* EmailService.swift */; };
 		D0954EFB2F37B90500A58439 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0954EF82F37B90500A58439 /* KeychainService.swift */; };
 		D0C870CF2F37F5BE0003AF7B /* EmailMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0C870CE2F37F5BE0003AF7B /* EmailMessage.swift */; };
@@ -53,7 +52,6 @@
 		D030D84D2F46C2B600A9B610 /* DriveService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveService.swift; sourceTree = "<group>"; };
 		D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognitionService.swift; sourceTree = "<group>"; };
 		D0954EF32F37A77900A58439 /* TextToSpeechService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextToSpeechService.swift; sourceTree = "<group>"; };
-		D0954EF62F37B90500A58439 /* EmailProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailProcessingService.swift; sourceTree = "<group>"; };
 		D0954EF72F37B90500A58439 /* EmailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailService.swift; sourceTree = "<group>"; };
 		D0954EF82F37B90500A58439 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		D0C870CD2F37F5BE0003AF7B /* EmailAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmailAccount.swift; sourceTree = "<group>"; };
@@ -167,7 +165,6 @@
 			isa = PBXGroup;
 			children = (
 				D030D84D2F46C2B600A9B610 /* DriveService.swift */,
-				D0954EF62F37B90500A58439 /* EmailProcessingService.swift */,
 				D0954EF72F37B90500A58439 /* EmailService.swift */,
 				D0954EF82F37B90500A58439 /* KeychainService.swift */,
 				D0954EF22F37A77900A58439 /* SpeechRecognitionService.swift */,
@@ -297,7 +294,6 @@
 				D0954EF42F37A77900A58439 /* TextToSpeechService.swift in Sources */,
 				D0954EF52F37A77900A58439 /* SpeechRecognitionService.swift in Sources */,
 				D030D84C2F46C2AD00A9B610 /* DriveDocument.swift in Sources */,
-				D0954EF92F37B90500A58439 /* EmailProcessingService.swift in Sources */,
 				D0C870CF2F37F5BE0003AF7B /* EmailMessage.swift in Sources */,
 				D0C870D02F37F5BE0003AF7B /* EmailAccount.swift in Sources */,
 				D0954EFA2F37B90500A58439 /* EmailService.swift in Sources */,

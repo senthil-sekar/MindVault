@@ -8,7 +8,7 @@ A personal AI-powered journal assistant that remembers everything about you. Wri
 - 👤 **Profile Builder**: Record your skills, education, work experience, certifications, and more
 - 🤖 **AI Chat**: Ask questions about your life, and get answers based on your journal
 - 🎤 **Voice Support**: Speak your thoughts and have AI responses read aloud
-- 📧 **Email Integration**: Connect Gmail and convert emails to journal entries (configurable in-app)
+- 📧 **Email Integration**: Connect Gmail, sync messages, and ask the AI about them in Chat (configurable in-app)
 - 🔍 **RAG-Powered**: Uses Retrieval-Augmented Generation for accurate, contextual responses
 - 🔒 **Privacy-Focused**: Your data stays on your infrastructure
 - 🦙 **Ollama Support**: Run AI models 100% locally - no API keys needed!
@@ -126,6 +126,8 @@ graph TB
             Health["/health"]
             Embed["/api/embed"]
             Upsert["/api/upsert"]
+            UpsertEmail["/api/upsert/email"]
+            UpsertDoc["/api/upsert/document"]
             Delete["/api/delete"]
             Search["/api/search"]
             ChatAPI["/api/chat"]
@@ -135,6 +137,8 @@ graph TB
         FastAPI --> Health
         FastAPI --> Embed
         FastAPI --> Upsert
+        FastAPI --> UpsertEmail
+        FastAPI --> UpsertDoc
         FastAPI --> Delete
         FastAPI --> Search
         FastAPI --> ChatAPI
@@ -153,7 +157,9 @@ graph TB
         
         Embed --> EmbedSvc
         Upsert --> RAGSvc
-        Delete --> VectorSvc
+        UpsertEmail --> RAGSvc
+        UpsertDoc --> RAGSvc
+        Delete --> RAGSvc
         Search --> RAGSvc
         ChatAPI --> RAGSvc
     end
@@ -364,10 +370,18 @@ MindVault/
 │   │       ├── embedding.py     # Local sentence-transformers embeddings
 │   │       ├── vector_db.py     # Qdrant operations
 │   │       ├── llm.py           # Chat completion
-│   │       └── rag.py           # RAG orchestration
+│   │       ├── rag.py           # RAG search + synthesis (serves every /api/chat call)
+│   │       ├── email_processor.py   # HTML cleaning, chunking for /api/upsert/email
+│   │       └── document_processor.py # PDF/DOCX text extraction
 │   ├── requirements.txt
 │   ├── Dockerfile
 │   └── .env.example
+│
+├── mcp-server/                   # Standalone MCP server (Google Drive tools)
+│   └── src/index.ts              # Not used by the iOS app or backend — DriveService.swift
+│                                  # talks to Google Drive directly. This exposes the same
+│                                  # capability as MCP tools for use from an MCP client
+│                                  # (e.g. Claude Desktop) instead.
 │
 └── docker-compose.yml            # Docker setup
 ```
@@ -379,7 +393,9 @@ MindVault/
 | `/health` | GET | Health check |
 | `/api/embed` | POST | Generate text embedding |
 | `/api/upsert` | POST | Add/update document in vector DB |
-| `/api/delete` | DELETE | Remove document from vector DB |
+| `/api/upsert/email` | POST | Add/update an email (HTML cleaning, signature stripping, thread-aware chunking) |
+| `/api/upsert/document` | POST | Add/update a document (PDF/DOCX text extraction) |
+| `/api/delete` | DELETE | Remove a document (and any chunks) from vector DB |
 | `/api/search` | POST | Search for similar documents |
 | `/api/chat` | POST | Generate AI response with RAG |
 | `/api/stats` | GET | Get collection statistics |
@@ -402,11 +418,14 @@ Navigate to Profile → Settings in the app to configure:
   - No manual configuration needed by users
   
 **Developer Setup (One-time):**
-To enable Gmail integration, configure the Client ID in `EmailService.swift`:
-1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Create project → Enable Gmail API → Create OAuth Client ID (iOS)
-3. Copy the Client ID and paste it into `gmailClientId` in `EmailService.swift`
-4. Users can then connect their Gmail accounts seamlessly
+The Google OAuth client ID is a build setting, not something hardcoded in source — see
+[docs/ENABLING_EMAIL_FEATURES.md](docs/ENABLING_EMAIL_FEATURES.md) for the 5-minute version, or
+[docs/EMAIL_CONFIGURATION_GUIDE.md](docs/EMAIL_CONFIGURATION_GUIDE.md) for the full walkthrough:
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → create project →
+   enable Gmail API → create an iOS OAuth Client ID
+2. `cp Config.local.xcconfig.example Config.local.xcconfig` and set `GOOGLE_OAUTH_CLIENT_ID`
+   there (gitignored — never committed)
+3. Users can then connect their Gmail accounts seamlessly, no source changes needed
 
 ### Backend Environment Variables
 
@@ -431,7 +450,9 @@ See [`backend/.env.example`](backend/.env.example) for a copy-paste starting poi
 | `RAG_TOP_K` | Documents retrieved per query | `5` |
 | `RAG_MIN_SCORE` | Minimum similarity score | `0.1` |
 
-> The backend is Ollama-only — there is no OpenAI code path, so no API key is needed or read.
+> The **backend** is Ollama-only — no OpenAI code path, no API key read here. OpenAI is only
+> ever called from the iOS app directly, in **OpenAI (BYOK)** mode (see [AI Modes](#ai-modes)) —
+> the backend and this variable table are unaffected by that mode.
 
 💡 **See `OLLAMA_SETUP.md` for complete Ollama setup and model selection guide**
 
@@ -492,8 +513,21 @@ pip install -r backend/requirements-dev.txt
 ./dev.sh test
 ./dev.sh lint
 
-# iOS tests
-xcodebuild test -project MindVault.xcodeproj -scheme MindVault
+# iOS: no test target exists yet (MindVault.xcodeproj has a single
+# PBXNativeTarget, the app itself). Verify iOS changes by building and
+# running in Xcode.
+```
+
+### Running the MCP Server
+
+Optional — the iOS app and backend don't use this; it exposes the same Google Drive
+capability as `DriveService.swift` for use from an MCP client instead.
+
+```bash
+cd mcp-server
+npm install
+npm run build   # tsc — this is what CI runs
+npm start        # or: npm run dev  (tsx watch)
 ```
 
 ## Privacy & Security
@@ -554,4 +588,4 @@ Contributions are welcome! Please read our contributing guidelines and submit pu
 
 ---
 
-Built with ❤️ using SwiftUI, FastAPI, Qdrant, and OpenAI
+Built with ❤️ using SwiftUI, FastAPI, Qdrant, Ollama, and MLX

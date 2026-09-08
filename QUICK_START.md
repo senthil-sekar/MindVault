@@ -52,7 +52,7 @@ curl -X POST http://localhost:8000/api/upsert \
 curl -X POST http://localhost:8000/api/search \
   -H 'Content-Type: application/json' -d '{"query":"what did I ship?","top_k":5}'
 
-# Ask the agent graph
+# Ask a question (RAG: vector search + LLM synthesis)
 curl -X POST http://localhost:8000/api/chat \
   -H 'Content-Type: application/json' -d '{"message":"What did I ship recently?"}'
 ```
@@ -65,8 +65,8 @@ curl -X POST http://localhost:8000/api/chat \
 
 **App can't reach the backend.** The simulator resolves `localhost` to itself, not your Mac, so
 `Configuration.defaultServerURL` auto-detects the Mac's `en0` IP. If your IP changed, override it in
-the app: **Profile → Settings → Server URL**. Plain-HTTP hosts other than `localhost` need an
-`NSExceptionDomains` entry in `MindVault/Info.plist` (there's one for `192.168.1.24` today).
+the app: **Profile → Settings → Server URL**. Plain HTTP to any host is allowed via
+`NSAllowsArbitraryLoads` in `MindVault/Info.plist` — no per-IP exception domain needed.
 
 **`vector_db_status: disconnected`.** Qdrant isn't up or isn't reachable: `docker-compose ps`, then
 `docker-compose up -d qdrant`. Inside Docker the backend uses `QDRANT_HOST=qdrant`; running the

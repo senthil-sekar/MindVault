@@ -129,16 +129,17 @@ curl http://localhost:11434/api/generate -d '{
 ### 2. Test Backend Connection
 
 ```bash
-cd backend
-python3 test_backend.py
+curl http://localhost:8000/health
 ```
 
-Look for:
+Expect:
+```json
+{"status":"ok","vector_db_status":"connected","embeddings_ready":true}
 ```
-✓ Ollama service is running
-✓ LLM service initialized
-✓ LLM generated response
-```
+
+`embeddings_ready` reflects the sentence-transformers model, not Ollama — a working chat
+response through `/api/chat` (see step 3 below) is the real end-to-end check that Ollama
+is reachable and `LLM_MODEL` is loaded.
 
 ### 3. Test in iOS App
 
@@ -247,9 +248,15 @@ ollama run llama3.2:3b "test"
 
 ## Alternative: OpenAI API
 
-Not supported. `backend/app/services/llm.py` talks to Ollama's `/api/generate` only; there is no
-OpenAI code path and no `LLM_PROVIDER` setting. Using a cloud model would mean implementing a new
-client in that service.
+`backend/app/services/llm.py` talks to Ollama's `/api/generate` only — the backend itself has no
+OpenAI code path and no `LLM_PROVIDER` setting.
+
+To use OpenAI instead of Ollama, skip Ollama specifically: in the iOS app, go to
+**Profile → Settings → AI Mode** and pick **OpenAI (BYOK)**. Your API key is stored in the iOS
+Keychain and generation requests go straight from the phone to `api.openai.com` — the backend
+still handles retrieval (embedding + vector search) exactly as before, but Ollama is never
+involved. See [AI Modes](../README.md#ai-modes) in the main README, or drop the backend too with
+**On-Device** mode (MLX, fully offline, no server at all).
 
 ---
 
