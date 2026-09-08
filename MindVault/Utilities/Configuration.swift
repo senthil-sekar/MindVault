@@ -25,10 +25,6 @@ enum Configuration {
         UserDefaults.standard.string(forKey: "serverURL") ?? defaultServerURL
     }
     
-    static var openAIKey: String {
-        UserDefaults.standard.string(forKey: "openAIKey") ?? ""
-    }
-
     // Detect the Mac's Wi-Fi IP address at runtime so the simulator can
     // reach the Docker backend without hardcoding a specific IP.
     private static func localIPAddress() -> String? {
@@ -81,6 +77,24 @@ enum Configuration {
         static var driveRedirectURI: String { "\(reversedClientID):/oauth2redirect" }
     }
 
+    // MARK: - LLM Provider Mode
+
+    static var llmMode: LLMProviderMode {
+        let raw = UserDefaults.standard.string(forKey: "llmMode") ?? LLMProviderMode.backend.rawValue
+        return LLMProviderMode(rawValue: raw) ?? .backend
+    }
+
+    // MARK: - BYOK / Local Model Settings
+
+    enum BYOK {
+        static var openAIModel: String {
+            UserDefaults.standard.string(forKey: "openAIModel") ?? "gpt-4o-mini"
+        }
+        static var localModelPath: String {
+            UserDefaults.standard.string(forKey: "localModelPath") ?? ""
+        }
+    }
+
     // MARK: - API Endpoints
     enum Endpoints {
         static var embedText: String { "\(serverURL)/api/embed" }
@@ -95,16 +109,15 @@ enum Configuration {
     
     // MARK: - RAG Configuration
     enum RAG {
-        static let topK = 5  // Number of documents to retrieve
-        static let minRelevanceScore: Float = 0.1  // Very low to catch generic queries
+        static let topK = 5
+        static let minRelevanceScore: Float = 0.1
         static let maxContextTokens = 4000
-        static let embeddingModel = "text-embedding-3-small"
-        static let embeddingDimension = 1536
+        static let embeddingModel = "all-MiniLM-L6-v2"
+        static let embeddingDimension = 384
     }
-    
+
     // MARK: - LLM Configuration
     enum LLM {
-        static let model = "gpt-4-turbo-preview"
         static let maxTokens = 2000
         static let temperature = 0.7
         
@@ -134,7 +147,9 @@ enum Configuration {
     enum StorageKeys {
         static let isOnboarded = "isOnboarded"
         static let serverURL = "serverURL"
-        static let openAIKey = "openAIKey"
+        static let llmMode = "llmMode"
+        static let openAIModel = "openAIModel"
+        static let localModelPath = "localModelPath"
         static let autoSync = "autoSync"
         static let lastSyncDate = "lastSyncDate"
     }

@@ -25,55 +25,73 @@ class RAGService: ObservableObject {
     func embedJournalEntry(_ entry: JournalEntry) async {
         isProcessing = true
         processingStatus = "Processing journal entry..."
-        
+
         do {
-            // Send to backend for embedding and storage
-            let upsertRequest = UpsertRequest(
-                id: entry.id.uuidString,
-                content: entry.fullText,
-                metadata: entry.metadata
-            )
-            
-            try await apiClient.upsert(request: upsertRequest)
-            
+            if Configuration.llmMode == .localLLM {
+                let vector = try EmbeddingService.shared.embedLocally(entry.fullText)
+                LocalVectorStore.shared.upsert(LocalVectorStore.VectorDocument(
+                    id: entry.id.uuidString,
+                    type: "journal_entry",
+                    title: entry.title,
+                    content: entry.fullText,
+                    vector: vector,
+                    indexedAt: Date()
+                ))
+            } else {
+                let upsertRequest = UpsertRequest(
+                    id: entry.id.uuidString,
+                    content: entry.fullText,
+                    metadata: entry.metadata
+                )
+                try await apiClient.upsert(request: upsertRequest)
+            }
+
             entry.isEmbedded = true
             entry.embeddingId = entry.id.uuidString
-            
             processingStatus = "Entry synced to AI"
             lastError = nil
         } catch {
             lastError = error.localizedDescription
             processingStatus = "Failed to sync entry"
         }
-        
+
         isProcessing = false
     }
-    
+
     // MARK: - Embed Profile Item
     func embedProfileItem(_ item: ProfileItem) async {
         isProcessing = true
         processingStatus = "Processing profile item..."
-        
+
         do {
-            // Send to backend for embedding and storage
-            let upsertRequest = UpsertRequest(
-                id: item.id.uuidString,
-                content: item.fullText,
-                metadata: item.metadata
-            )
-            
-            try await apiClient.upsert(request: upsertRequest)
-            
+            if Configuration.llmMode == .localLLM {
+                let vector = try EmbeddingService.shared.embedLocally(item.fullText)
+                LocalVectorStore.shared.upsert(LocalVectorStore.VectorDocument(
+                    id: item.id.uuidString,
+                    type: item.type,
+                    title: item.title,
+                    content: item.fullText,
+                    vector: vector,
+                    indexedAt: Date()
+                ))
+            } else {
+                let upsertRequest = UpsertRequest(
+                    id: item.id.uuidString,
+                    content: item.fullText,
+                    metadata: item.metadata
+                )
+                try await apiClient.upsert(request: upsertRequest)
+            }
+
             item.isEmbedded = true
             item.embeddingId = item.id.uuidString
-            
             processingStatus = "Profile item synced to AI"
             lastError = nil
         } catch {
             lastError = error.localizedDescription
             processingStatus = "Failed to sync profile item"
         }
-        
+
         isProcessing = false
     }
     
@@ -81,42 +99,102 @@ class RAGService: ObservableObject {
     func generateResponse(to query: String) async -> (String, [ChatContext]) {
         isProcessing = true
         processingStatus = "Searching your journal..."
-        
+
         do {
-            // Send query to backend RAG endpoint
-            let chatRequest = ChatRequest(message: query)
-            let response = try await apiClient.chat(request: chatRequest)
-            
-            print("📬 RAG Response received:")
-            print("   - Response length: \(response.response.count)")
-            print("   - Contexts count: \(response.contexts.count)")
-            
-            // Convert backend contexts to ChatContext
-            var contexts: [ChatContext] = []
-            for result in response.contexts {
-                print("   📎 Context: \(result.title) (score: \(result.score))")
-                let chatContext = ChatContext(
-                    documentId: result.id,
-                    documentType: result.type,
-                    title: result.title,
-                    snippet: result.snippet,
-                    relevanceScore: Float(result.score),
-                    date: nil
+            let mode = Configuration.llmMode
+
+            switch mode {
+            case .backend:
+                // Backend handles embedding + search + generation end-to-end
+                let chatRequest = ChatRequest(message: query)
+                let response = try await apiClient.chat(request: chatRequest)
+                let contexts = response.contexts.map { result in
+                    ChatContext(
+                        documentId: result.id,
+                        documentType: result.type,
+                        title: result.title,
+                        snippet: result.snippet,
+                        relevanceScore: Float(result.score),
+                        date: nil
+                    )
+                }
+                lastError = nil
+                isProcessing = false
+                return (response.response, contexts)
+
+            case .openAI:
+                // Backend handles embedding + search; OpenAI handles generation
+                processingStatus = "Retrieving relevant context..."
+                let results = try await apiClient.search(query: query, topK: Configuration.RAG.topK)
+                let contexts: [ChatContext] = results.compactMap { result in
+                    guard let content = result.content else { return nil }
+                    let meta = result.metadata
+                    let title = (meta["title"]?.value as? String)
+                        ?? (meta["subject"]?.value as? String) ?? "Result"
+                    let type = (meta["type"]?.value as? String) ?? "document"
+                    return ChatContext(
+                        documentId: result.id, documentType: type, title: title,
+                        snippet: String(content.prefix(300)), relevanceScore: result.score, date: nil
+                    )
+                }
+                processingStatus = "Generating response..."
+                let contextTexts = results.compactMap { $0.content }
+                let answer = try await LLMService.activeProvider.complete(
+                    systemPrompt: Configuration.LLM.systemPrompt,
+                    userMessage: buildRAGMessage(contexts: contextTexts, query: query),
+                    history: []
                 )
-                contexts.append(chatContext)
+                lastError = nil
+                isProcessing = false
+                return (answer, contexts)
+
+            case .localLLM:
+                // Fully offline: on-device embed → local vector search → MLX generation
+                processingStatus = "Embedding query on-device..."
+                let queryVector = try EmbeddingService.shared.embedLocally(query)
+
+                processingStatus = "Searching local journal..."
+                let matches = LocalVectorStore.shared.search(
+                    queryVector: queryVector,
+                    topK: Configuration.RAG.topK
+                )
+
+                let contexts = matches.map { match in
+                    ChatContext(
+                        documentId: match.id,
+                        documentType: match.type,
+                        title: match.title,
+                        snippet: String(match.content.prefix(300)),
+                        relevanceScore: match.score,
+                        date: nil
+                    )
+                }
+
+                processingStatus = "Generating response on-device..."
+                let contextTexts = matches.map { $0.content }
+                let answer = try await LLMService.activeProvider.complete(
+                    systemPrompt: Configuration.LLM.systemPrompt,
+                    userMessage: buildRAGMessage(contexts: contextTexts, query: query),
+                    history: []
+                )
+                lastError = nil
+                isProcessing = false
+                return (answer, contexts)
             }
-            
-            print("   ✅ Returning \(contexts.count) contexts to ChatView")
-            
-            lastError = nil
-            isProcessing = false
-            return (response.response, contexts)
-            
         } catch {
             lastError = error.localizedDescription
             isProcessing = false
-            return ("I'm having trouble connecting to the AI service. Please check your connection and try again.", [])
+            return ("I'm having trouble connecting to the AI service. Please check your settings and try again.", [])
         }
+    }
+
+    private func buildRAGMessage(contexts: [String], query: String) -> String {
+        var msg = "Here is relevant information from the user's personal journal and profile:\n\n"
+        for (i, ctx) in contexts.enumerated() {
+            msg += "--- Context \(i + 1) ---\n\(ctx)\n\n"
+        }
+        msg += "---\n\nUser Question: \(query)"
+        return msg
     }
     
     // MARK: - Batch Sync
@@ -124,52 +202,26 @@ class RAGService: ObservableObject {
         isProcessing = true
         var successCount = 0
         var failedCount = 0
-        
-        let totalCount = entries.count + items.count
-        var currentIndex = 0
-        
-        // Sync journal entries
-        for entry in entries where !entry.isEmbedded {
-            currentIndex += 1
-            processingStatus = "Syncing \(currentIndex)/\(totalCount)..."
-            
-            do {
-                let upsertRequest = UpsertRequest(
-                    id: entry.id.uuidString,
-                    content: entry.fullText,
-                    metadata: entry.metadata
-                )
-                try await apiClient.upsert(request: upsertRequest)
-                
-                entry.isEmbedded = true
-                entry.embeddingId = entry.id.uuidString
-                successCount += 1
-            } catch {
-                failedCount += 1
-            }
+
+        let unsyncedEntries = entries.filter { !$0.isEmbedded }
+        let unsyncedItems   = items.filter   { !$0.isEmbedded }
+        let total = unsyncedEntries.count + unsyncedItems.count
+        var current = 0
+
+        for entry in unsyncedEntries {
+            current += 1
+            processingStatus = "Syncing \(current)/\(total)…"
+            await embedJournalEntry(entry)
+            entry.isEmbedded ? (successCount += 1) : (failedCount += 1)
         }
-        
-        // Sync profile items
-        for item in items where !item.isEmbedded {
-            currentIndex += 1
-            processingStatus = "Syncing \(currentIndex)/\(totalCount)..."
-            
-            do {
-                let upsertRequest = UpsertRequest(
-                    id: item.id.uuidString,
-                    content: item.fullText,
-                    metadata: item.metadata
-                )
-                try await apiClient.upsert(request: upsertRequest)
-                
-                item.isEmbedded = true
-                item.embeddingId = item.id.uuidString
-                successCount += 1
-            } catch {
-                failedCount += 1
-            }
+
+        for item in unsyncedItems {
+            current += 1
+            processingStatus = "Syncing \(current)/\(total)…"
+            await embedProfileItem(item)
+            item.isEmbedded ? (successCount += 1) : (failedCount += 1)
         }
-        
+
         processingStatus = "Sync complete"
         isProcessing = false
         return (successCount, failedCount)
@@ -178,23 +230,27 @@ class RAGService: ObservableObject {
     // MARK: - Delete from Vector DB
     func deleteEntry(_ entry: JournalEntry) async {
         guard let embeddingId = entry.embeddingId else { return }
-        
-        do {
-            let deleteRequest = DeleteRequest(id: embeddingId)
-            try await apiClient.delete(request: deleteRequest)
-        } catch {
-            lastError = error.localizedDescription
+        if Configuration.llmMode == .localLLM {
+            LocalVectorStore.shared.delete(id: embeddingId)
+        } else {
+            do {
+                try await apiClient.delete(request: DeleteRequest(id: embeddingId))
+            } catch {
+                lastError = error.localizedDescription
+            }
         }
     }
-    
+
     func deleteProfileItem(_ item: ProfileItem) async {
         guard let embeddingId = item.embeddingId else { return }
-        
-        do {
-            let deleteRequest = DeleteRequest(id: embeddingId)
-            try await apiClient.delete(request: deleteRequest)
-        } catch {
-            lastError = error.localizedDescription
+        if Configuration.llmMode == .localLLM {
+            LocalVectorStore.shared.delete(id: embeddingId)
+        } else {
+            do {
+                try await apiClient.delete(request: DeleteRequest(id: embeddingId))
+            } catch {
+                lastError = error.localizedDescription
+            }
         }
     }
     
@@ -214,10 +270,19 @@ class RAGService: ObservableObject {
         """
         
         do {
-            let chatRequest = ChatRequest(message: prompt)
-            let response = try await apiClient.chat(request: chatRequest)
+            let response: String
+            if Configuration.llmMode == .backend {
+                let chatRequest = ChatRequest(message: prompt)
+                response = try await apiClient.chat(request: chatRequest).response
+            } else {
+                response = try await LLMService.activeProvider.complete(
+                    systemPrompt: Configuration.LLM.systemPrompt,
+                    userMessage: prompt,
+                    history: []
+                )
+            }
             isProcessing = false
-            return response.response
+            return response
         } catch {
             lastError = error.localizedDescription
             isProcessing = false

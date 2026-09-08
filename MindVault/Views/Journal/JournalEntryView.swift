@@ -291,6 +291,8 @@ struct JournalEntryView: View {
     }
     
     private func deleteEntry() {
+        // Drop the embedding first, or the assistant keeps citing deleted entries.
+        Task { await RAGService.shared.deleteEntry(entry) }
         modelContext.delete(entry)
         dismiss()
     }

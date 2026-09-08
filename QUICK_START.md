@@ -59,6 +59,10 @@ curl -X POST http://localhost:8000/api/chat \
 
 ## Troubleshooting
 
+> Most entries below apply to **AI Backend** mode. In **On-Device** mode there is no
+> server, so backend/Qdrant/Ollama issues don't apply — see the On-Device section at
+> the end. Check which mode you're in under **Profile → Settings → AI Mode**.
+
 **App can't reach the backend.** The simulator resolves `localhost` to itself, not your Mac, so
 `Configuration.defaultServerURL` auto-detects the Mac's `en0` IP. If your IP changed, override it in
 the app: **Profile → Settings → Server URL**. Plain-HTTP hosts other than `localhost` need an
@@ -80,3 +84,25 @@ Ollama via `http://host.docker.internal:11434`.
 (`docker-compose down -v`).
 
 **Gmail sync does nothing.** See [docs/ENABLING_EMAIL_FEATURES.md](docs/ENABLING_EMAIL_FEATURES.md).
+
+### On-Device mode
+
+**"On-device inference isn't linked yet."** The MLX package isn't in the project. In Xcode:
+**File → Add Package Dependencies…** → `https://github.com/ml-explore/mlx-swift-lm`
+(Up to Next Major, from `3.31.3`) → add **MLXLLM** and **MLXLMCommon** to the MindVault
+target. Needs Xcode 26+ (the package is swift-tools-version 6.2). Retrieval and embedding
+work without it; only generation is blocked.
+
+**"No local model selected."** Download one in **Settings → AI Mode → Browse Models**.
+Start with Llama 3.2 3B (~1.8 GB) — the best speed/quality balance on an iPhone 16 Plus.
+
+**Chat returns nothing relevant.** The on-device index is separate from the backend's
+Qdrant. After switching to On-Device mode, run **Settings → Sync All Now** to index your
+existing entries locally.
+
+**Voice input fails with an on-device error.** The device or locale can't transcribe
+on-device, and On-Device mode won't send audio to Apple's servers. Type the entry, or
+switch AI mode if server-based dictation is acceptable to you.
+
+**Download fails partway.** Downloads resume — re-tap Download and already-finished files
+are skipped. Check free storage; models range from 0.7 GB to 4.1 GB.

@@ -38,6 +38,10 @@
 		E01234562016 /* RAGService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560116 /* RAGService.swift */; };
 		E01234562017 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560117 /* APIClient.swift */; };
 		E01234562018 /* Configuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560118 /* Configuration.swift */; };
+		E01234562019 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560119 /* LLMProvider.swift */; };
+		E01234562020 /* ModelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560120 /* ModelCatalog.swift */; };
+		E01234562021 /* LocalVectorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560121 /* LocalVectorStore.swift */; };
+		E01234562022 /* ModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01234560122 /* ModelBrowserView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -76,6 +80,10 @@
 		E01234560116 /* RAGService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RAGService.swift; sourceTree = "<group>"; };
 		E01234560117 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		E01234560118 /* Configuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Configuration.swift; sourceTree = "<group>"; };
+		E01234560119 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
+		E01234560120 /* ModelCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelCatalog.swift; sourceTree = "<group>"; };
+		E01234560121 /* LocalVectorStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalVectorStore.swift; sourceTree = "<group>"; };
+		E01234560122 /* ModelBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelBrowserView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -168,6 +176,9 @@
 				E01234560114 /* VectorDBService.swift */,
 				E01234560115 /* LLMService.swift */,
 				E01234560116 /* RAGService.swift */,
+				E01234560119 /* LLMProvider.swift */,
+				E01234560120 /* ModelCatalog.swift */,
+				E01234560121 /* LocalVectorStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -204,6 +215,7 @@
 			children = (
 				E01234560111 /* ProfileView.swift */,
 				E01234560112 /* SkillsView.swift */,
+				E01234560122 /* ModelBrowserView.swift */,
 			);
 			path = Profile;
 			sourceTree = "<group>";
@@ -305,6 +317,10 @@
 				E01234562016 /* RAGService.swift in Sources */,
 				E01234562017 /* APIClient.swift in Sources */,
 				E01234562018 /* Configuration.swift in Sources */,
+				E01234562019 /* LLMProvider.swift in Sources */,
+				E01234562020 /* ModelCatalog.swift in Sources */,
+				E01234562021 /* LocalVectorStore.swift in Sources */,
+				E01234562022 /* ModelBrowserView.swift in Sources */,
 				D030D84A2F46C29800A9B610 /* DriveView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

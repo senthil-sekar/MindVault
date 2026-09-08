@@ -193,6 +193,8 @@ struct ProfileView: View {
     }
     
     private func deleteItem(_ item: ProfileItem) {
+        // Drop the embedding first, or the assistant keeps citing deleted items.
+        Task { await RAGService.shared.deleteProfileItem(item) }
         modelContext.delete(item)
     }
 }
@@ -360,12 +362,26 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var emailAccounts: [EmailAccount]
     
-    @AppStorage("serverURL") private var serverURL = Configuration.defaultServerURL
-    @AppStorage("openAIKey") private var openAIKey = ""
-    @AppStorage("autoSync") private var autoSync = true
-    
+    @AppStorage("serverURL")     private var serverURL    = Configuration.defaultServerURL
+    @AppStorage("llmMode")       private var llmModeRaw   = LLMProviderMode.backend.rawValue
+    @AppStorage("openAIModel")   private var openAIModel  = "gpt-4o-mini"
+    @AppStorage("localModelPath") private var localModelPath = ""
+    @AppStorage("autoSync")      private var autoSync     = true
+
+    @Query private var journalEntries: [JournalEntry]
+    @Query private var allProfileItems: [ProfileItem]
+
     @State private var showEmailConnection = false
     @State private var showEmailList = false
+    @State private var openAIKeyEntry = ""
+    @State private var apiKeySaved = false
+    @State private var isSyncing = false
+    @State private var syncStatus: String?
+    @State private var showClearDataConfirm = false
+
+    private var llmMode: LLMProviderMode {
+        LLMProviderMode(rawValue: llmModeRaw) ?? .backend
+    }
     
     var body: some View {
         NavigationStack {
@@ -398,28 +414,103 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section("AI Backend") {
-                    TextField("Server URL", text: $serverURL)
-                        .autocapitalization(.none)
-                        .keyboardType(.URL)
-                    Text("Default: \(Configuration.defaultServerURL)\nFor iOS Simulator use your Mac's IP (not localhost).")
+                Section("AI Mode") {
+                    Picker("Mode", selection: $llmModeRaw) {
+                        ForEach(LLMProviderMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.displayName).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Label(llmMode.privacyLabel, systemImage: llmMode.privacyIcon)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    
-                    TextField("OpenAI API Key (optional)", text: $openAIKey)
-                        .autocapitalization(.none)
+
+                    Text(llmMode.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if llmMode == .backend {
+                    Section("Backend Server") {
+                        TextField("Server URL", text: $serverURL)
+                            .autocapitalization(.none)
+                            .keyboardType(.URL)
+                        Text("Default: \(Configuration.defaultServerURL)\nFor iOS Simulator use your Mac's IP.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if llmMode == .openAI {
+                    Section("OpenAI API Key") {
+                        SecureField("sk-…", text: $openAIKeyEntry)
+                            .autocapitalization(.none)
+                        Picker("Model", selection: $openAIModel) {
+                            Text("GPT-4o Mini  (fast · low cost)").tag("gpt-4o-mini")
+                            Text("GPT-4o  (best quality)").tag("gpt-4o")
+                            Text("GPT-3.5 Turbo  (legacy)").tag("gpt-3.5-turbo")
+                        }
+                        Button(apiKeySaved ? "Key Saved ✓" : "Save Key") {
+                            saveOpenAIKey()
+                        }
+                        .disabled(openAIKeyEntry.isEmpty)
+                        if !openAIKeyEntry.isEmpty {
+                            Button("Remove Key", role: .destructive) {
+                                removeOpenAIKey()
+                            }
+                        }
+                    }
+                }
+
+                if llmMode == .localLLM {
+                    Section("Local Model (MLX)") {
+                        NavigationLink(destination: ModelBrowserView()) {
+                            HStack {
+                                Label("Browse Models", systemImage: "cpu.fill")
+                                Spacer()
+                                if localModelPath.isEmpty {
+                                    Text("None selected")
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text(URL(fileURLWithPath: localModelPath).lastPathComponent)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                        Text("Download a model to your device and run it fully offline. Requires iPhone 15 Pro or newer (A17 Pro+) and the MLX-Swift package in Xcode.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 Section("Sync Settings") {
                     Toggle("Auto-sync new entries", isOn: $autoSync)
-                    
-                    Button("Sync All Now") {
-                        // Trigger sync
+
+                    Button {
+                        Task { await syncAllNow() }
+                    } label: {
+                        HStack {
+                            Text(isSyncing ? "Syncing…" : "Sync All Now")
+                            if isSyncing {
+                                Spacer()
+                                ProgressView()
+                            }
+                        }
                     }
-                    
+                    .disabled(isSyncing)
+
+                    if let syncStatus {
+                        Text(syncStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Button("Clear AI Data", role: .destructive) {
-                        // Clear embeddings
+                        showClearDataConfirm = true
                     }
+                    .disabled(isSyncing)
                 }
                 
                 Section("Data") {
@@ -459,7 +550,73 @@ struct SettingsView: View {
             .sheet(isPresented: $showEmailList) {
                 EmailListView()
             }
+            .onAppear {
+                openAIKeyEntry = (try? KeychainService.shared.retrieveAPIKey(for: "openai")) ?? ""
+                apiKeySaved = !openAIKeyEntry.isEmpty
+            }
+            .confirmationDialog(
+                "Clear all AI data?",
+                isPresented: $showClearDataConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Clear AI Data", role: .destructive) { clearAIData() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Removes every search index entry. Your journal entries and profile stay untouched — you can re-index anytime with Sync All Now.")
+            }
         }
+    }
+
+    // MARK: - Sync / Index Helpers
+
+    private func syncAllNow() async {
+        isSyncing = true
+        syncStatus = nil
+        let result = await RAGService.shared.syncAllEntries(
+            entries: journalEntries,
+            items: allProfileItems
+        )
+        isSyncing = false
+        syncStatus = result.failed == 0
+            ? "Indexed \(result.success) item\(result.success == 1 ? "" : "s")."
+            : "Indexed \(result.success), failed \(result.failed)."
+    }
+
+    private func clearAIData() {
+        if llmMode == .localLLM {
+            LocalVectorStore.shared.deleteAll()
+        } else {
+            let ids = journalEntries.compactMap(\.embeddingId) + allProfileItems.compactMap(\.embeddingId)
+            Task {
+                for id in ids {
+                    try? await APIClient.shared.delete(request: DeleteRequest(id: id))
+                }
+            }
+        }
+        // Reset local flags so Sync All Now re-indexes everything.
+        for entry in journalEntries {
+            entry.isEmbedded = false
+            entry.embeddingId = nil
+        }
+        for item in allProfileItems {
+            item.isEmbedded = false
+            item.embeddingId = nil
+        }
+        syncStatus = "AI index cleared."
+    }
+
+    // MARK: - Keychain Helpers
+
+    private func saveOpenAIKey() {
+        guard !openAIKeyEntry.isEmpty else { return }
+        try? KeychainService.shared.saveAPIKey(openAIKeyEntry, for: "openai")
+        apiKeySaved = true
+    }
+
+    private func removeOpenAIKey() {
+        try? KeychainService.shared.deleteAPIKey(for: "openai")
+        openAIKeyEntry = ""
+        apiKeySaved = false
     }
 }
 
@@ -532,6 +689,11 @@ struct EmailAccountRow: View {
 }
 
 #Preview {
+    // SettingsView @Query-s JournalEntry and EmailAccount too — opening Settings
+    // from the preview traps if the container doesn't know those types.
     ProfileView()
-        .modelContainer(for: [ProfileItem.self], inMemory: true)
+        .modelContainer(
+            for: [ProfileItem.self, JournalEntry.self, EmailAccount.self],
+            inMemory: true
+        )
 }
