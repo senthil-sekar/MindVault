@@ -12,6 +12,54 @@ A personal AI-powered journal assistant that remembers everything about you. Wri
 - 🔍 **RAG-Powered**: Uses Retrieval-Augmented Generation for accurate, contextual responses
 - 🔒 **Privacy-Focused**: Your data stays on your infrastructure
 - 🦙 **Ollama Support**: Run AI models 100% locally - no API keys needed!
+- 📱 **On-Device Mode**: Run the whole pipeline on the iPhone itself — no Mac, no server, no network
+
+## AI Modes
+
+Pick a mode in **Profile → Settings → AI Mode**. Each one changes where embedding,
+search, and generation actually run:
+
+| Mode | Retrieval | Generation | Needs a server? | Privacy |
+|---|---|---|---|---|
+| **AI Backend (Ollama)** | Backend + Qdrant | Ollama on your Mac | Yes — Mac on the same network | Local network |
+| **OpenAI (BYOK)** | Backend + Qdrant | OpenAI API, called directly from the phone | Yes, for search | Prompts go to OpenAI |
+| **On-Device** | `NLEmbedding` + on-device vector store | MLX running on the iPhone | **No** | Never leaves the device |
+
+### On-Device mode
+
+Everything runs on the phone:
+
+- **Embeddings** — Apple's built-in `NLEmbedding.sentenceEmbedding`. No download, no network.
+- **Vector search** — `LocalVectorStore`, a JSON-backed store with `vDSP` cosine similarity.
+- **Generation** — [MLX](https://github.com/ml-explore/mlx-swift-lm) running a 4-bit quantized model on the GPU.
+- **Dictation** — forced to on-device speech recognition, so audio is never uploaded.
+
+Download models in-app from **Settings → AI Mode → Browse Models**. Curated options,
+all verified to fit an iPhone 16 Plus (A18, 8 GB RAM):
+
+| Model | Size | Tier |
+|---|---|---|
+| Llama 3.2 1B | ~0.7 GB | Fast |
+| Gemma 3 1B | ~0.8 GB | Fast |
+| **Llama 3.2 3B** | ~1.8 GB | **Balanced — recommended** |
+| Qwen 2.5 3B | ~1.9 GB | Balanced |
+| Phi 3.5 Mini | ~2.2 GB | Balanced |
+| Gemma 3 4B | ~2.5 GB | Balanced |
+| Mistral 7B | ~4.1 GB | Quality |
+
+**One-time Xcode setup to enable on-device generation:**
+
+1. **File → Add Package Dependencies…**
+2. Enter `https://github.com/ml-explore/mlx-swift-lm` (Up to Next Major, from `3.31.3`)
+3. Add the **MLXLLM** and **MLXLMCommon** products to the MindVault target
+
+Requires **Xcode 26+** (the package is swift-tools-version 6.2) and iOS 17+. An A17 Pro
+or newer device is recommended — inference runs on the GPU via Metal. Until the package
+is linked, the app builds and runs normally and On-Device mode reports that generation
+isn't available yet; retrieval and embedding already work without it.
+
+> Google Drive documents: On-Device mode indexes PDFs, Google Docs, and text files
+> using PDFKit. `.docx` / `.pptx` still need the backend's parsers.
 
 ## Architecture
 
@@ -198,8 +246,8 @@ flowchart LR
 
 ## Prerequisites
 
-- **iOS Development**: Xcode 15+, iOS 17+
-- **Backend**: 
+- **iOS Development**: Xcode 15+, iOS 17+ (Xcode 26+ only if you want On-Device generation)
+- **Backend** — *not needed if you only use On-Device mode*:
   - Python 3.9+
   - **Ollama** (local LLM) - 100% free, runs locally
   - Qdrant (vector database) - runs via Docker
@@ -270,9 +318,14 @@ MindVault/
 │   │   ├── Journal/
 │   │   ├── Chat/
 │   │   └── Profile/
+│   │       ├── ProfileView.swift        # Includes SettingsView (AI Mode)
+│   │       └── ModelBrowserView.swift   # Download/select on-device models
 │   ├── Services/                 # AI/RAG services
-│   │   ├── EmbeddingService.swift
-│   │   ├── VectorDBService.swift
+│   │   ├── EmbeddingService.swift       # Backend or on-device (NLEmbedding)
+│   │   ├── VectorDBService.swift        # Routes to Qdrant or LocalVectorStore
+│   │   ├── LocalVectorStore.swift       # On-device vectors + vDSP search
+│   │   ├── LLMProvider.swift            # Backend / OpenAI / MLX providers
+│   │   ├── ModelCatalog.swift           # Model catalog + HF downloader
 │   │   ├── LLMService.swift
 │   │   └── RAGService.swift
 │   └── Utilities/
@@ -314,8 +367,12 @@ MindVault/
 
 Navigate to Profile → Settings in the app to configure:
 
-- **Server URL**: Backend API URL (default: `http://localhost:8000`)
+- **AI Mode**: Backend / OpenAI (BYOK) / On-Device — see [AI Modes](#ai-modes) above
+- **Server URL**: Backend API URL (shown in Backend mode; default: `http://localhost:8000`)
+- **OpenAI API Key**: Stored in the iOS Keychain, never in UserDefaults (BYOK mode)
+- **Browse Models**: Download and select on-device MLX models (On-Device mode)
 - **Auto-sync**: Automatically sync new entries to AI
+- **Sync All Now / Clear AI Data**: Re-index or wipe the search index (journal entries themselves are untouched)
 - **Email Accounts**: Connect Gmail with one tap
   - Users just click "Connect Gmail Account" and authorize
   - Emails are automatically synced and processed for RAG context
@@ -419,10 +476,19 @@ xcodebuild test -project MindVault.xcodeproj -scheme MindVault
 ## Privacy & Security
 
 - All data is stored locally on your device and your self-hosted backend
-- Journal entries are never sent to third parties — embeddings and chat both run locally
 - You control your Qdrant instance and all stored embeddings
 - API keys are stored securely in iOS Keychain and never logged
 - Email OAuth tokens are hardware-encrypted in Keychain
+- Dictation uses on-device speech recognition when the device supports it; in
+  On-Device mode it refuses to fall back to Apple's servers rather than
+  silently uploading audio
+
+What leaves the device depends on the AI mode:
+
+- **On-Device** — nothing. Embedding, search, and generation all run on the phone.
+- **AI Backend** — entries go to your own machine on your own network; nothing to third parties.
+- **OpenAI (BYOK)** — retrieved context and your question are sent to OpenAI to
+  generate each answer. Everything else stays on your infrastructure.
 
 ## Documentation
 
@@ -440,9 +506,12 @@ For detailed guides, see the `docs/` folder:
 - [x] Voice input and output (Speech-to-text & Text-to-speech)
 - [x] Email integration (Gmail OAuth, in-app configuration)
 - [x] Secure credential storage (iOS Keychain)
+- [x] BYOK mode (bring your own OpenAI key)
+- [x] On-device embeddings (`NLEmbedding`)
+- [x] On-device vector store (vDSP cosine similarity)
+- [x] On-device LLM generation (MLX) with in-app model downloads
 
 ### Coming Soon
-- [ ] On-device embeddings (MLX/ONNX)
 - [ ] iCloud sync for journal entries
 - [ ] Apple Watch companion app
 - [ ] Siri integration
