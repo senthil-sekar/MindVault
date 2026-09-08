@@ -13,9 +13,9 @@ class TextToSpeechService: NSObject, ObservableObject {
     static let shared = TextToSpeechService()
     
     @Published var isSpeaking = false
-    @Published var currentSpeechRate: Float = 0.5
-    @Published var currentVoice: AVSpeechSynthesisVoice?
-    
+    private var currentSpeechRate: Float = 0.5
+    private var currentVoice: AVSpeechSynthesisVoice?
+
     private let synthesizer = AVSpeechSynthesizer()
     private var currentUtterance: AVSpeechUtterance?
     
@@ -55,33 +55,10 @@ class TextToSpeechService: NSObject, ObservableObject {
         isSpeaking = true
     }
     
-    func pause() {
-        synthesizer.pauseSpeaking(at: .immediate)
-    }
-    
-    func resume() {
-        synthesizer.continueSpeaking()
-    }
-    
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
         currentUtterance = nil
         isSpeaking = false
-    }
-    
-    // MARK: - Voice Selection
-    static var availableVoices: [AVSpeechSynthesisVoice] {
-        AVSpeechSynthesisVoice.speechVoices()
-            .filter { $0.language.starts(with: "en") }
-            .sorted { $0.name < $1.name }
-    }
-    
-    func setVoice(_ voice: AVSpeechSynthesisVoice) {
-        currentVoice = voice
-    }
-    
-    func setSpeechRate(_ rate: Float) {
-        currentSpeechRate = min(max(rate, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
     }
 }
 

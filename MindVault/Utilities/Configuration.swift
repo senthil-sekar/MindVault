@@ -142,41 +142,21 @@ enum Configuration {
         Remember: You're not just an AI - you're their personal assistant who has learned about them through their journal.
         """
     }
-    
-    // MARK: - Storage Keys
-    enum StorageKeys {
-        static let isOnboarded = "isOnboarded"
-        static let serverURL = "serverURL"
-        static let llmMode = "llmMode"
-        static let openAIModel = "openAIModel"
-        static let localModelPath = "localModelPath"
-        static let autoSync = "autoSync"
-        static let lastSyncDate = "lastSyncDate"
-    }
 }
 
 // MARK: - Network Errors
 enum NetworkError: Error, LocalizedError {
     case invalidURL
-    case noData
-    case decodingError
     case serverError(Int)
-    case connectionError
     case unauthorized
     case unknown(Error)
-    
+
     var errorDescription: String? {
         switch self {
         case .invalidURL:
             return "Invalid server URL"
-        case .noData:
-            return "No data received from server"
-        case .decodingError:
-            return "Failed to decode server response"
         case .serverError(let code):
             return "Server error (code: \(code))"
-        case .connectionError:
-            return "Unable to connect to server"
         case .unauthorized:
             return "Unauthorized - check your API key"
         case .unknown(let error):

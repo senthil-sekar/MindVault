@@ -52,8 +52,6 @@ struct MindVaultApp: App {
 class AppState: ObservableObject {
     @Published var isOnboarded: Bool = UserDefaults.standard.bool(forKey: "isOnboarded")
     @Published var selectedTab: Tab = .journal
-    @Published var isProcessingEmbeddings: Bool = false
-    @Published var embeddingProgress: Double = 0.0
     
     enum Tab: String, CaseIterable {
         case journal = "Journal"

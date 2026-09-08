@@ -56,33 +56,28 @@ actor APIClient {
     // MARK: - Upsert Document
     func upsert(id: String, content: String, metadata: [String: Any]) async throws {
         let url = try makeURL(Configuration.Endpoints.upsert)
-        print("📤 APIClient.upsert called - id: \(id), content_len: \(content.count)")
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
         let upsertRequest = UpsertRequest(id: id, content: content, metadata: metadata)
         request.httpBody = try encoder.encode(upsertRequest)
-        
+
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
-        print("✅ APIClient.upsert succeeded - id: \(id)")
     }
-    
+
     func upsert(request: UpsertRequest) async throws {
         let url = try makeURL(Configuration.Endpoints.upsert)
-        print("📤 APIClient.upsert(request) called - id: \(request.id), content_len: \(request.content.count)")
-        
+
         var httpRequest = URLRequest(url: url)
         httpRequest.httpMethod = "POST"
         httpRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         httpRequest.httpBody = try encoder.encode(request)
-        
+
         let (_, response) = try await session.data(for: httpRequest)
         try validateResponse(response)
-        print("✅ APIClient.upsert(request) succeeded - id: \(request.id)")
-
     }
     
     // MARK: - Upsert Email (Improved Processing)
@@ -98,8 +93,7 @@ actor APIClient {
         labels: [String]? = nil
     ) async throws {
         let url = try makeURL(Configuration.Endpoints.upsertEmail)
-        print("📧 APIClient.upsertEmail called - id: \(id), subject: \(subject)")
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -125,7 +119,6 @@ actor APIClient {
         
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
-        print("✅ APIClient.upsertEmail succeeded - id: \(id)")
     }
     
     // MARK: - Delete Document
@@ -177,25 +170,6 @@ actor APIClient {
     }
     
     // MARK: - Chat
-    func chat(message: String, conversationHistory: [[String: String]]? = nil) async throws -> ChatResponse {
-        let url = try makeURL(Configuration.Endpoints.chat)
-        
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        var body: [String: Any] = ["message": message]
-        if let history = conversationHistory {
-            body["history"] = history
-        }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
-        
-        return try decoder.decode(ChatResponse.self, from: data)
-    }
-    
     func chat(request: ChatRequest) async throws -> ChatResponse {
         let url = try makeURL(Configuration.Endpoints.chat)
         
@@ -213,10 +187,8 @@ actor APIClient {
     
     private func makeURL(_ endpoint: String) throws -> URL {
         guard let url = URL(string: endpoint) else {
-            print("❌ Invalid URL: \(endpoint)")
             throw NetworkError.invalidURL
         }
-        print("🔗 API Request to: \(endpoint)")
         return url
     }
     
@@ -239,20 +211,3 @@ actor APIClient {
         }
     }
 }
-
-// MARK: - Batch Operations
-extension APIClient {
-    func batchUpsert(documents: [(id: String, content: String, metadata: [String: Any])]) async throws {
-        for document in documents {
-            try await upsert(id: document.id, content: document.content, metadata: document.metadata)
-        }
-    }
-    
-    func batchDelete(ids: [String]) async throws {
-        for id in ids {
-            try await delete(id: id)
-        }
-    }
-}
-
-

@@ -149,28 +149,3 @@ enum ProfileType: String, CaseIterable, Codable {
         }
     }
 }
-
-// MARK: - Skill Category
-enum SkillCategory: String, CaseIterable {
-    case programming = "Programming"
-    case frameworks = "Frameworks"
-    case tools = "Tools"
-    case softSkills = "Soft Skills"
-    case languages = "Languages"
-    case design = "Design"
-    case data = "Data & Analytics"
-    case cloud = "Cloud & DevOps"
-    case other = "Other"
-}
-
-// MARK: - Education Level
-enum EducationLevel: String, CaseIterable {
-    case highSchool = "High School"
-    case associate = "Associate's Degree"
-    case bachelor = "Bachelor's Degree"
-    case master = "Master's Degree"
-    case doctorate = "Doctorate"
-    case bootcamp = "Bootcamp"
-    case certification = "Certification"
-    case selfTaught = "Self-Taught"
-}

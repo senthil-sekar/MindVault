@@ -72,10 +72,6 @@ final class EmailAccount {
         return try KeychainService.shared.retrieveToken(for: email, type: .refreshToken)
     }
     
-    func getIdToken() throws -> String? {
-        return try? KeychainService.shared.retrieveToken(for: email, type: .idToken)
-    }
-    
     func deleteTokens() throws {
         try KeychainService.shared.deleteAllTokens(for: email)
     }
