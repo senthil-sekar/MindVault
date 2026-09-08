@@ -20,7 +20,7 @@ class LLMService:
         self.settings = get_settings()
         # Use environment variable or default
         self.ollama_url = os.getenv("OLLAMA_URL", self.settings.ollama_url)
-        self.model = "llama3.2"  # Using the model we downloaded
+        self.model = self.settings.llm_model
         self._ready = False
         
     def initialize(self):
